@@ -1,0 +1,21 @@
+{
+    "name": "Basic Python",
+    "build": {
+        "dockerfile": "Dockerfile",
+        "context": "../../"
+    },
+    "overrideCommand": "sleep infinity",
+    "service": "client",
+    "settings": { 
+      "terminal.integrated.shell.linux": "/bin/bash"
+    },
+    "runArgs": ["--network=host",
+        // "-v", "${env:HOME}/.aws:/root/.aws",
+        // "-v","${env:HOME}/.kube:/root/.kube",
+        // "-v","${env:HOME}/.minikube:/root/.minikube",
+        "-v","${env:HOME}:${env:HOME}",
+        "-v","${env:HOME}/.ssh:/root/.ssh"
+      ],
+    "shutdownAction": "stopCompose"
+  }
+  
