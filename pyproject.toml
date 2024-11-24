@@ -17,6 +17,9 @@ pydantic = "^2.5.2"
 loguru = "^0.7.2"
 streamlit = "^1.40.1"
 commitizen = "^3.31.0"
+fastapi = "^0.115.5"
+uvicorn = "^0.32.1"
+exifread = "^3.0.0"
 
 [tool.poetry.group.dev.dependencies]
 pre-commit = "^3.5.0"
