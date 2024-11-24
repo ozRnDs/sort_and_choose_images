@@ -8,13 +8,36 @@
             "name": "Picture Selector",
             "type": "debugpy",
             "request": "launch",
-            "program": "src/picture_selector.py",
+            "module": "streamlit",
+            "args": ["run", "src/picture_selector.py"],
             "console": "integratedTerminal",
             "env": {
                 "DEBUG": "True"
             },
             "justMyCode": false,
-            "preLaunchTask": "Start Prefect Server", // Task is defined in tasks.json
+        },
+        { 
+            "name": "Load Files Metadata",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "streamlit",
+            "args": ["run", "src/load_files_metadata.py"],
+            "console": "integratedTerminal",
+            "env": {
+                "DEBUG": "True"
+            },
+            "justMyCode": false,
+        },
+        {
+            "name": "Python: FastAPI (Uvicorn)",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "uvicorn",
+            "args": [
+                "src.fastapi_server:app",          // Replace 'backend' with the filename of your FastAPI script (without the .py extension)
+                "--reload"
+            ],
+            "jinja": true
         }
     ]
 }
