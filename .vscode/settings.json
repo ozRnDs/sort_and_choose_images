@@ -1,0 +1,7 @@
+{
+    "python.testing.pytestEnabled": true,
+    "python.testing.pytestArgs": [
+        "-s"
+    ],
+    "python.poetryPath": "poetry"
+}
