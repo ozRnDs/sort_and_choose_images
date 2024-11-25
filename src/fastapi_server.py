@@ -1,5 +1,6 @@
 import os
 import pickle
+import re
 from collections import defaultdict
 from datetime import datetime
 from typing import Dict, List
@@ -77,7 +78,128 @@ async def get_index(success: bool = False):
         return HTMLResponse(content=f.read(), status_code=200)
 
 
-# Endpoint to load images from the base path
+def extract_image_metadata(file: str, root: str) -> ImageMetadata:
+    """
+    Extracts metadata from a single image file.
+
+    Args:
+        file (str): The name of the image file.
+        root (str): The directory path where the file is located.
+
+    Returns:
+        ImageMetadata: An object containing metadata of the image.
+    """
+    full_path = os.path.join(root, file)
+    size = os.path.getsize(full_path)
+    type_ = file.split(".")[-1].upper()
+    creation_date = "Unknown"
+    camera = "Unknown"
+
+    # Extract EXIF metadata if available
+    with open(full_path, "rb") as image_file:
+        tags = exifread.process_file(
+            image_file, stop_tag="DateTimeOriginal", details=False
+        )
+        if "EXIF DateTimeOriginal" in tags:
+            creation_date = tags["EXIF DateTimeOriginal"].values
+        if "Image Model" in tags:
+            camera = tags["Image Model"].values
+
+    # If creation_date is still unknown, use the file's last modified date
+    if creation_date == "Unknown":
+        modified_timestamp = os.path.getmtime(full_path)
+        creation_date = datetime.fromtimestamp(modified_timestamp).strftime(
+            "%Y:%m:%d %H:%M:%S"
+        )
+
+    # Check if the file name matches the WhatsApp image naming structure
+    if camera == "Unknown":
+        whatsapp_pattern = r"IMG-\d{8}-WA\d+"
+        if re.match(whatsapp_pattern, file):
+            camera = "whatsapp"
+
+    return ImageMetadata(
+        name=file,
+        full_client_path=full_path.replace(BASE_PATH, "/images"),
+        size=size,
+        type=type_,
+        camera=camera,
+        creationDate=creation_date,
+    )
+
+
+def save_groups(groups: Dict[str, List[Dict]]):
+    """
+    Save the groups to the grouped metadata file after sorting by creation date.
+
+    Args:
+        groups (Dict[str, List[Dict]]): The dictionary of groups to save.
+    """
+    # Load existing grouped metadata if it exists
+    if os.path.exists(GROUPED_FILE):
+        with open(GROUPED_FILE, "rb") as f:
+            grouped_metadata = pickle.load(f)
+    else:
+        grouped_metadata = []
+
+    # Update or add new groups to grouped metadata
+    existing_group_names = {group["group_name"]: group for group in grouped_metadata}
+    for group_key, images in groups.items():
+        # Sort images by creation date
+        images.sort(key=lambda x: x.get("creationDate", "Unknown"))
+        representative_image = images[0]  # Select the first image as representative
+        group_thumbnail_url = representative_image.get("full_client_path")
+
+        if group_key in existing_group_names:
+            # Update existing group
+            existing_group = existing_group_names[group_key]
+
+            # Preserve existing group's selection field
+            selection = existing_group.get("selection")
+
+            # Update list_of_images, preserving classification and ron_in_image fields if they exist
+            existing_images = {
+                img.get("image_id"): img for img in existing_group["list_of_images"]
+            }
+            for image in images:
+                image_id = image.get("image_id")
+                if image_id in existing_images:
+                    existing_image = existing_images[image_id]
+                    image["classification"] = existing_image.get(
+                        "classification", image.get("classification")
+                    )
+                    image["ron_in_image"] = existing_image.get(
+                        "ron_in_image", image.get("ron_in_image")
+                    )
+
+            existing_group["list_of_images"] = images
+            existing_group["selection"] = selection
+        else:
+            # Add new group
+            group_metadata = GroupMetadata(
+                group_name=group_key,
+                group_thumbnail_url=group_thumbnail_url,
+                list_of_images=images,
+            )
+            grouped_metadata.append(group_metadata.model_dump())
+
+    # Save updated grouped metadata to a pickle file
+    sort_and_save_groups(grouped_metadata)
+
+
+def sort_and_save_groups(grouped_metadata: List[Dict]):
+    """
+    Sort the groups by date and save them to the grouped metadata file.
+
+    Args:
+        grouped_metadata (List[Dict]): The list of grouped metadata to save.
+    """
+    grouped_metadata.sort(key=lambda x: x.get("group_name", "Unknown"))
+    with open(GROUPED_FILE, "wb") as f:
+        pickle.dump(grouped_metadata, f)
+
+
+# Update the load_images function to use the new extract_image_metadata function
 @app.get("/load_images")
 async def load_images():
     images = []
@@ -86,30 +208,7 @@ async def load_images():
             if file.lower().endswith(
                 (".png", ".jpg", ".jpeg", ".tiff", ".bmp", ".gif")
             ):
-                full_path = os.path.join(root, file)
-                size = os.path.getsize(full_path)
-                type_ = file.split(".")[-1].upper()
-                creation_date = "Unknown"
-                camera = "Unknown"
-
-                # Extract EXIF metadata if available
-                with open(full_path, "rb") as image_file:
-                    tags = exifread.process_file(
-                        image_file, stop_tag="DateTimeOriginal", details=False
-                    )
-                    if "EXIF DateTimeOriginal" in tags:
-                        creation_date = tags["EXIF DateTimeOriginal"].values
-                    if "Image Model" in tags:
-                        camera = tags["Image Model"].values
-
-                image_metadata = ImageMetadata(
-                    name=file,
-                    full_client_path=full_path.replace(BASE_PATH, "/images"),
-                    size=size,
-                    type=type_,
-                    camera=camera,
-                    creationDate=creation_date,
-                )
+                image_metadata = extract_image_metadata(file, root)
                 images.append(image_metadata)
 
     # Convert Pydantic objects to a list of dictionaries for pickling
@@ -134,35 +233,8 @@ async def load_images():
             group_key = "Unknown"
         groups[group_key].append(image)
 
-    # Load existing grouped metadata if it exists
-    if os.path.exists(GROUPED_FILE):
-        with open(GROUPED_FILE, "rb") as f:
-            grouped_metadata = pickle.load(f)
-    else:
-        grouped_metadata = []
-
-    # Update or add new groups to grouped metadata
-    existing_group_names = {group["group_name"]: group for group in grouped_metadata}
-    for group_key, images in groups.items():
-        representative_image = images[0]  # Select the first image as representative
-        group_thumbnail_url = representative_image.get("full_client_path")
-
-        if group_key in existing_group_names:
-            # Update existing group
-            existing_group = existing_group_names[group_key]
-            existing_group["list_of_images"] = images
-        else:
-            # Add new group
-            group_metadata = GroupMetadata(
-                group_name=group_key,
-                group_thumbnail_url=group_thumbnail_url,
-                list_of_images=images,
-            )
-            grouped_metadata.append(group_metadata.model_dump())
-
-    # Save updated grouped metadata to a pickle file
-    with open(GROUPED_FILE, "wb") as f:
-        pickle.dump(grouped_metadata, f)
+    # Save groups using the new function
+    save_groups(groups)
 
     return JSONResponse(
         content={"message": "Images loaded and grouped successfully"}, status_code=200
@@ -266,8 +338,7 @@ async def toggle_group_selection(group_select: ToggleGroupSelection):
         return JSONResponse(content={"error": "Group not found"}, status_code=404)
 
     # Save updated grouped metadata to a pickle file
-    with open(GROUPED_FILE, "wb") as f:
-        pickle.dump(grouped_metadata, f)
+    sort_and_save_groups(grouped_metadata)
 
     return JSONResponse(
         content={"message": "Group selection updated successfully"}, status_code=200
@@ -299,8 +370,7 @@ async def update_image_classification(request: UpdateClassificationRequest):
         raise HTTPException(status_code=404, detail="Group not found")
 
     # Save updated metadata
-    with open(GROUPED_FILE, "wb") as f:
-        pickle.dump(grouped_metadata, f)
+    sort_and_save_groups(grouped_metadata)
 
     return {"message": "Image classification updated successfully"}
 
@@ -330,8 +400,7 @@ async def update_ron_in_image(request: UpdateRonInImageRequest):
         raise HTTPException(status_code=404, detail="Group not found")
 
     # Save updated metadata
-    with open(GROUPED_FILE, "wb") as f:
-        pickle.dump(grouped_metadata, f)
+    sort_and_save_groups(grouped_metadata)
 
     return {"message": "Ron in image flag updated successfully"}
 
