@@ -68,9 +68,6 @@
             </button>
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav">
-                    <!-- <li class="nav-item">
-                        <a class="nav-link" href="#" onclick="loadImages()">Load Images</a>
-                    </li> -->
                     <li class="nav-item">
                         <a class="nav-link" href="/static/groups.html">Groups</a>
                     </li>
@@ -94,13 +91,13 @@
             </div>
         </div>
         <div class="text-center mb-3">
-            <button class="btn btn-secondary" id="toggleFilter" onclick="toggleFilter()">Filter Unprocessed: On</button>
+            <button class="btn btn-secondary" id="toggleFilter" onclick="toggleFilter()">Filter Unprocessed: Off</button>
         </div>
         <div id="grid" class="grid-container"></div>
         <div class="pagination">
-            <button class="btn btn-primary" id="prevPage" onclick="changePage(-1)">&laquo; Previous</button>
+            <button class="btn btn-primary" id="prevPage" onclick="changePage(-1)" disabled>&laquo; Previous</button>
             <span id="pageInfo" class="mx-3"></span>
-            <button class="btn btn-primary" id="nextPage" onclick="changePage(1)">Next &raquo;</button>
+            <button class="btn btn-primary" id="nextPage" onclick="changePage(1)" disabled>Next &raquo;</button>
         </div>
     </div>
 
@@ -110,14 +107,50 @@
         let currentPage = 1;
         const pageSize = 6;
         let totalGroups = 0;
-        let filterUnprocessed = true;
+        let filterUnprocessed = false;
         let startDate = null;
         let endDate = null;
 
         document.addEventListener("DOMContentLoaded", function() {
             initializeDateSlider();
-            fetchMinMaxDates();
+            fetchMinMaxDates().then(() => {
+                loadStateFromLocalStorage();
+                loadFilterFromCookies();
+                fetchGroups(currentPage);
+            });
         });
+
+        window.addEventListener("beforeunload", function() {
+            saveStateToLocalStorage();
+        });
+
+        function saveStateToLocalStorage() {
+            localStorage.setItem("currentPage", currentPage);
+            localStorage.setItem("scrollPosition", window.scrollY);
+        }
+
+        function loadStateFromLocalStorage() {
+            const savedPage = localStorage.getItem("currentPage");
+            if (savedPage) {
+                currentPage = parseInt(savedPage, 10);
+            }
+            const savedScrollPosition = localStorage.getItem("scrollPosition");
+            if (savedScrollPosition) {
+                window.scrollTo(0, parseInt(savedScrollPosition, 10));
+            }
+        }
+
+        function setCookie(name, value, days) {
+            const date = new Date();
+            date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
+            document.cookie = `${name}=${value};expires=${date.toUTCString()};path=/`;
+        }
+
+        function getCookie(name) {
+            const value = `; ${document.cookie}`;
+            const parts = value.split(`; ${name}=`);
+            if (parts.length === 2) return parts.pop().split(';').shift();
+        }
 
         async function fetchMinMaxDates() {
             try {
@@ -129,6 +162,7 @@
                 const startRangeDate = new Date(data.min_date).getTime();
                 const endRangeDate = new Date(data.max_date).getTime();
                 setDateSlider(startRangeDate, endRangeDate);
+                loadDateRangeFromCookies();
             } catch (error) {
                 console.error('Error fetching min and max dates:', error);
             }
@@ -176,6 +210,13 @@
                 endDate = new Date(+values[1]).toISOString().split('T')[0];
                 document.getElementById('startDate').textContent = startDate;
                 document.getElementById('endDate').textContent = endDate;
+            });
+
+            rangeSlider1.noUiSlider.on('change', function (values, handle) {
+                startDate = new Date(+values[0]).toISOString().split('T')[0];
+                endDate = new Date(+values[1]).toISOString().split('T')[0];
+                setCookie('startDate', startDate, 7);
+                setCookie('endDate', endDate, 7);
                 fetchGroups(currentPage);
             });
         }
@@ -189,6 +230,28 @@
                     'max': endRangeDate
                 }
             });
+        }
+
+        function loadDateRangeFromCookies() {
+            const savedStartDate = getCookie('startDate');
+            const savedEndDate = getCookie('endDate');
+            if (savedStartDate && savedEndDate) {
+                startDate = savedStartDate;
+                endDate = savedEndDate;
+                document.getElementById('startDate').textContent = startDate;
+                document.getElementById('endDate').textContent = endDate;
+                const rangeSlider1 = document.getElementById('rangeSlider1');
+                rangeSlider1.noUiSlider.set([new Date(savedStartDate).getTime(), new Date(savedEndDate).getTime()]);
+            }
+        }
+
+        function loadFilterFromCookies() {
+            const savedFilter = getCookie('filterUnprocessed');
+            if (savedFilter !== undefined) {
+                filterUnprocessed = (savedFilter === 'true');
+                const filterButton = document.getElementById('toggleFilter');
+                filterButton.textContent = `Filter Unprocessed: ${filterUnprocessed ? 'On' : 'Off'}`;
+            }
         }
 
         async function fetchGroups(page) {
@@ -282,6 +345,7 @@
             filterUnprocessed = !filterUnprocessed;
             const filterButton = document.getElementById('toggleFilter');
             filterButton.textContent = `Filter Unprocessed: ${filterUnprocessed ? 'On' : 'Off'}`;
+            setCookie('filterUnprocessed', filterUnprocessed, 7);
             fetchGroups(currentPage);
         }
 
