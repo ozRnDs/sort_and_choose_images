@@ -14,6 +14,14 @@
                 "--reload"
             ],
             "jinja": true
-        }
+        },
+        {
+            "name": "Explore Pickle",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/dev/explore_pickle_file.py",
+            "console": "integratedTerminal",
+            "justMyCode": true
+          }
     ]
 }
