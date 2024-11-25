@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Classification</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <style>
+        body {
+            background-color: #f8f9fa;
+            font-family: Arial, sans-serif;
+        }
+        .container {
+            margin-top: 20px;
+        }
+        .sidebar {
+            height: 100vh;
+            overflow-y: auto;
+            background-color: #e9ecef;
+            padding: 20px;
+            border-right: 1px solid #ddd;
+        }
+        .sidebar .group-item {
+            cursor: pointer;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            margin-bottom: 10px;
+            background-color: #fff;
+            transition: background-color 0.3s ease;
+        }
+        .sidebar .group-item:hover {
+            background-color: #d1e7dd;
+        }
+        .grid-container {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            grid-gap: 20px;
+            padding: 20px;
+        }
+        .grid-item {
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            padding: 15px;
+            text-align: center;
+            background-color: #ffffff;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            transition: transform 0.2s ease;
+            position: relative;
+        }
+        .grid-item:hover {
+            transform: scale(1.05);
+        }
+        .grid-item img {
+            border-radius: 8px;
+            max-height: 300px;
+            width: 100%;
+            object-fit: cover;
+            cursor: pointer;
+        }
+        .enlarge {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            max-width: 90%;
+            max-height: 90%;
+            z-index: 1050;
+            border: 3px solid #007bff;
+            border-radius: 10px;
+        }
+        .enlarge-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 1040;
+        }
+        .classify-controls {
+            margin-top: 15px;
+        }
+        .classify-controls .btn-group {
+            width: 100%;
+            display: flex;
+            justify-content: space-around;
+        }
+        .ron-btn {
+            margin-top: 10px;
+            border-radius: 50px;
+            padding: 8px 20px;
+            background-color: #28a745;
+            color: #ffffff;
+            border: none;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            transition: background-color 0.3s ease, box-shadow 0.3s ease;
+        }
+        .ron-btn.no {
+            background-color: #ffffff;
+            color: #6c757d;
+            border: 1px solid #6c757d;
+        }
+        .ron-btn:hover {
+            background-color: #218838;
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+        }
+        .ron-btn.no:hover {
+            background-color: #e9ecef;
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.1);
+        }
+        .navbar {
+            margin-bottom: 20px;
+        }
+        #loading {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 2000;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="#">Image Management</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav">
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" onclick="loadImages()">Load Images</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/static/groups.html">Groups</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/static/images.html">Classify</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div id="loading">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+    </div>
+
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-md-2 sidebar">
+                <h4>Interesting Groups</h4>
+                <div id="groupsList"></div>
+            </div>
+            <div class="col-md-10">
+                <h4 class="text-center mt-3 mb-4">Image Classification</h4>
+                <div id="grid" class="grid-container"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function loadImages() {
+            const loadingElement = document.getElementById('loading');
+            loadingElement.style.display = 'block';
+            try {
+                const response = await fetch('/load_images');
+                if (!response.ok) {
+                    throw new Error('Failed to load images');
+                }
+                window.location.reload();
+            } catch (error) {
+                console.error('Error loading images:', error);
+                alert('Failed to load images');
+            } finally {
+                loadingElement.style.display = 'none';
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            fetchGroups();
+            setTimeout(() => {
+                const firstGroup = document.querySelector('.group-item');
+                if (firstGroup) {
+                    firstGroup.click();
+                }
+            }, 500);
+        });
+
+        async function fetchGroups() {
+            try {
+                const response = await fetch(`/get_groups_paginated?page=1&page_size=100&filter_selections=interesting`);
+                if (!response.ok) {
+                    throw new Error('Failed to fetch group data');
+                }
+                const data = await response.json();
+                displayGroups(data.groups);
+            } catch (error) {
+                console.error('Error fetching group data:', error);
+            }
+        }
+
+        function displayGroups(groups) {
+            const groupsList = document.getElementById('groupsList');
+            groupsList.innerHTML = '';
+            const groupedByMonth = {};
+
+            groups.forEach(group => {
+                const dateParts = group.group_name.split('-');
+                if (dateParts.length >= 2) {
+                    const yearMonth = `${dateParts[0]}-${dateParts[1]}`;
+                    if (!groupedByMonth[yearMonth]) {
+                        groupedByMonth[yearMonth] = [];
+                    }
+                    groupedByMonth[yearMonth].push(group);
+                }
+            });
+
+            Object.keys(groupedByMonth).sort().forEach(month => {
+                const monthDiv = document.createElement('div');
+                monthDiv.className = 'month-group';
+                monthDiv.innerHTML = `<h5>${month}</h5>`;
+                groupedByMonth[month].forEach(group => {
+                    const div = document.createElement('div');
+                    div.className = 'group-item';
+                    div.dataset.groupName = group.group_name;
+                    div.onclick = () => fetchGroupImages(group.group_name);
+                    div.innerHTML = `<strong>${group.group_name}</strong> (${group.list_of_images.length} images)`;
+                    monthDiv.appendChild(div);
+                });
+                groupsList.appendChild(monthDiv);
+            });
+        }
+
+        async function fetchGroupImages(groupName) {
+            try {
+                const response = await fetch(`/get_groups_paginated?page=1&page_size=100&filter_selections=interesting`);
+                if (!response.ok) {
+                    throw new Error('Failed to fetch group data');
+                }
+                const data = await response.json();
+                const group = data.groups.find(g => g.group_name === groupName);
+                if (group) {
+                    displayImages(group.list_of_images, group.group_name);
+                }
+            } catch (error) {
+                console.error('Error fetching group data:', error);
+            }
+        }
+        function displayImages(images, groupName) {
+            const grid = document.getElementById('grid');
+            grid.innerHTML = '';
+            images.forEach((image, index) => {
+                const div = document.createElement('div');
+                div.className = 'grid-item';
+                div.innerHTML = `
+                    <img src="${image.full_client_path}" alt="Image ${index + 1}" onclick="enlargeImage('${image.full_client_path}')">
+                    <div class="mt-2">
+                        <button class="ron-btn ${image.ron_in_image ? '' : 'no'}" onclick="toggleRonInImage(${index}, '${groupName}', '${image.name}')">Ron in the image: ${image.ron_in_image ? 'Yes' : 'No'}</button>
+                    </div>
+                    <div class="classify-controls">
+                        <div class="btn-group" role="group" aria-label="Image Classification">
+                            <input type="radio" class="btn-check" name="classification-${index}" value="Historical" id="historical-${index}" ${image.classification === 'Historical' ? 'checked' : ''}>
+                            <label class="btn btn-outline-primary" for="historical-${index}" onclick="updateClassification(${index}, '${groupName}', '${image.name}', 'Historical')">Historical</label>
+                            
+                            <input type="radio" class="btn-check" name="classification-${index}" value="Nature" id="nature-${index}" ${image.classification === 'Nature' ? 'checked' : ''}>
+                            <label class="btn btn-outline-primary" for="nature-${index}" onclick="updateClassification(${index}, '${groupName}', '${image.name}', 'Nature')">Nature</label>
+                            
+                            <input type="radio" class="btn-check" name="classification-${index}" value="Family Trips" id="family-trips-${index}" ${image.classification === 'Family Trips' ? 'checked' : ''}>
+                            <label class="btn btn-outline-primary" for="family-trips-${index}" onclick="updateClassification(${index}, '${groupName}', '${image.name}', 'Family Trips')">Family Trips</label>
+                            
+                            <input type="radio" class="btn-check" name="classification-${index}" value="Family Gatherings" id="family-gatherings-${index}" ${image.classification === 'Family Gatherings' ? 'checked' : ''}>
+                            <label class="btn btn-outline-primary" for="family-gatherings-${index}" onclick="updateClassification(${index}, '${groupName}', '${image.name}', 'Family Gatherings')">Family Gatherings</label>
+                            
+                            <input type="radio" class="btn-check" name="classification-${index}" value="Archaeology" id="archaeology-${index}" ${image.classification === 'Archaeology' ? 'checked' : ''}>
+                            <label class="btn btn-outline-primary" for="archaeology-${index}" onclick="updateClassification(${index}, '${groupName}', '${image.name}', 'Archaeology')">Archaeology</label>
+                            
+                            <input type="radio" class="btn-check" name="classification-${index}" value="None" id="none-${index}" ${image.classification === 'None' ? 'checked' : ''}>
+                            <label class="btn btn-outline-primary" for="none-${index}" onclick="updateClassification(${index}, '${groupName}', '${image.name}', 'None')">None</label>
+                        </div>
+                    </div>
+                `;
+                grid.appendChild(div);
+            });
+        }
+
+        async function toggleRonInImage(index, groupName, imageName) {
+            const button = document.querySelector(`.grid-item:nth-child(${index + 1}) .ron-btn`);
+            const currentValue = button.textContent.includes('Yes');
+            const newValue = !currentValue;
+
+            button.textContent = `Ron in the image: ${newValue ? 'Yes' : 'No'}`;
+            button.classList.toggle('no', !newValue);
+
+            await fetch('/update_ron_in_image', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    group_name: groupName,
+                    image_name: imageName,
+                    ron_in_image: newValue
+                })
+            });
+        }
+
+        async function updateClassification(index, groupName, imageName, classification) {
+            await fetch('/update_image_classification', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    group_name: groupName,
+                    image_name: imageName,
+                    classification: classification
+                })
+            });
+        }
+
+        function enlargeImage(imageSrc) {
+            const overlay = document.createElement('div');
+            overlay.className = 'enlarge-overlay';
+            overlay.onclick = () => document.body.removeChild(overlay);
+
+            const img = document.createElement('img');
+            img.src = imageSrc;
+            img.className = 'enlarge';
+            overlay.appendChild(img);
+
+            document.body.appendChild(overlay);
+        }
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

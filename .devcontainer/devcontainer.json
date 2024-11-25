@@ -14,7 +14,8 @@
         // "-v","${env:HOME}/.kube:/root/.kube",
         // "-v","${env:HOME}/.minikube:/root/.minikube",
         "-v","${env:HOME}:${env:HOME}",
-        "-v","${env:HOME}/.ssh:/root/.ssh"
+        "-v","${env:HOME}/.ssh:/root/.ssh",
+        "-v","/mnt/c:/mnt/c",
       ],
     "shutdownAction": "stopCompose"
   }
