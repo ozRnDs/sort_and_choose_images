@@ -14,10 +14,10 @@ from .models.images import ImageMetadata
 
 app = FastAPI()
 
-PICKLE_FILE = "image_metadata.pkl"
-GROUPED_FILE = "grouped_metadata.pkl"
+PICKLE_FILE = "/data/image_metadata.pkl"
+GROUPED_FILE = "/data/grouped_metadata.pkl"
 STATIC_FOLDER_LOCATION = "src/static"
-BASE_PATH = "/mnt/c/Users/Oz Personal/Pictures"
+BASE_PATH = "/images"
 
 
 # Define Pydantic model for grouped information
