@@ -68,7 +68,7 @@
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav">
                     <li class="nav-item">
-                        <a class="nav-link" href="/">Load Images</a>
+                        <a class="nav-link" href="#" onclick="loadImages()">Load Images</a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" href="/static/groups.html">Groups</a>
@@ -99,6 +99,23 @@
         const pageSize = 6;
         let totalGroups = 0;
         let filterUnprocessed = true;
+
+        async function loadImages() {
+            const loadingElement = document.getElementById('loading');
+            loadingElement.style.display = 'block';
+            try {
+                const response = await fetch('/load_images');
+                if (!response.ok) {
+                    throw new Error('Failed to load images');
+                }
+                window.location.reload();
+            } catch (error) {
+                console.error('Error loading images:', error);
+                alert('Failed to load images');
+            } finally {
+                loadingElement.style.display = 'none';
+            }
+        }
 
         document.addEventListener('DOMContentLoaded', () => {
             fetchGroups(currentPage);
