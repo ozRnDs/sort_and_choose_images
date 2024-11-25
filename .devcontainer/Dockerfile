@@ -10,6 +10,3 @@ ENV PYTHONUNBUFFERED=1 \
 
 RUN apt update && apt install git-all -y
 RUN pip install poetry
-# COPY . /app
-# RUN poetry install && poetry run pre-commit install
-# ENTRYPOINT poetry run python main.py run chat_analyzer
