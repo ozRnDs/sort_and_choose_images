@@ -4,7 +4,7 @@ readme = "README.md"
 # edit your project name
 name = "sort-and-choose-images"
 # edit your project's version. you can start with 0.1.0 for initial version
-version = "0.1.0"
+version = "0.2.0"
 # edit your project's description
 description = "testing how prefect works"
 # edit your projects' authors
@@ -27,6 +27,14 @@ pytest = "^7.2.2"
 pytest-mock = "^3.10.0"
 commitizen = "^3.29.1"
 
+
+[tool.commitizen]
+name = "cz_conventional_commits"
+tag_format = "0.1"
+version_scheme = "pep440"
+version_provider = "poetry"
+update_changelog_on_bump = true
+major_version_zero = true
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
