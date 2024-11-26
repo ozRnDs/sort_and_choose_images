@@ -35,10 +35,10 @@
         }
         .grid-container {
             display: grid;
-            grid-template-columns: repeat(3, 1fr);
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
             grid-gap: 20px;
             padding: 20px;
-        }
+}
         .grid-item {
             border: 2px solid #e0e0e0;
             border-radius: 10px;
@@ -86,6 +86,14 @@
             width: 100%;
             display: flex;
             justify-content: space-around;
+            flex-wrap: wrap;  /* Allow buttons to wrap to the next line */
+            /* gap: 10px;  /* Add spacing between buttons for a better look */
+            justify-content: center; /* Center buttons within the container */
+            
+        }
+        .btn-group .btn {
+            flex: 1 1 15%;  /* Make each button take up approximately 45% of the row */
+            /* margin-bottom: 10px;  Add margin to ensure spacing between rows when wrapping */
         }
         .ron-btn {
             margin-top: 10px;

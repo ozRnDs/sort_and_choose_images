@@ -15,24 +15,45 @@
         .container {
             margin-top: 40px;
         }
+        .pagination {
+            display: flex;
+            justify-content: center;
+            margin-top: 20px;
+            z-index: 1;
+        }
+        .pagination button {
+            margin: 0 5px;
+            padding: 10px;
+            cursor: pointer;
+        }
+
         .grid-container {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
             grid-gap: 20px;
             padding: 20px;
         }
+
         .grid-item {
+            width: 300px;
+            height: 300px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            align-items: center;
             border: 2px solid #e0e0e0;
             border-radius: 10px;
             padding: 15px;
-            text-align: center;
             background-color: #ffffff;
             box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
             transition: transform 0.2s ease;
+            z-index: 2;
         }
         .grid-item:hover {
-            transform: scale(1.05);
+            transform: scale(2);
+            z-index: 3;
         }
+
         .grid-item img {
             border-radius: 8px;
             max-height: 200px;
@@ -44,19 +65,68 @@
         .not-interesting {
             border: 2px solid red;
         }
-        .pagination {
-            display: flex;
-            justify-content: center;
-            margin-top: 20px;
-        }
-        .pagination button {
-            margin: 0 5px;
-            padding: 10px;
-            cursor: pointer;
-        }
         .navbar {
             margin-bottom: 20px;
         }
+
+        .grid-item .image-group {
+        width: 100%;
+        height: 200px;
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        align-items: center;
+        gap: 5px;
+    }
+    .grid-item .image-group img {
+        max-height: 100px;
+        max-width: 120px;
+        object-fit: cover;
+        border-radius: 5px;
+    }
+    .grid-item .image-group .single-image-wrapper {
+        width: 100%;
+        height: 200px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+    }
+    .grid-item .image-group .single-image-wrapper img {
+        max-height: 100%;
+        max-width: 100%;
+        object-fit: cover;
+        border-radius: 5px;
+    }
+    .grid-item .image-group .double-image-wrapper {
+        display: flex;
+        gap: 5px;
+        width: 240px;
+        height: 200px;
+    }
+    .grid-item .image-group .double-image-wrapper.row-layout {
+        flex-direction: column;
+    }
+    .grid-item .image-group .double-image-wrapper.column-layout {
+        flex-direction: row;
+    }
+    .grid-item .image-group .double-image-wrapper img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        border-radius: 5px;
+    }
+    .grid-item .image-group .image-wrapper {
+        display: flex;
+        justify-content: space-between;
+        width: 100%;
+        height: 200px;
+    }
+    .grid-item .image-group .image-wrapper img {
+        width: 49%;
+        height: 100%;
+        object-fit: cover;
+        border-radius: 5px;
+    }
     </style>
 </head>
 <body>
@@ -278,21 +348,87 @@
         }
 
         function displayGroups(groups) {
-            const grid = document.getElementById('grid');
-            grid.innerHTML = '';
-            groups.forEach(group => {
-                const div = document.createElement('div');
-                div.className = `grid-item ${group.selection} || ''`;
-                div.dataset.groupName = group.group_name;
-                div.innerHTML = `
-                    <img src="${group.group_thumbnail_url}" alt="${group.group_name}" class="img-fluid">
-                    <h5 class="mt-3">${group.group_name}</h5>
-                    <p>${group.list_of_images.length} images</p>
+        const grid = document.getElementById('grid');
+        grid.innerHTML = '';
+        groups.forEach(group => {
+            const div = document.createElement('div');
+            div.className = `grid-item ${group.selection || ''}`;
+            div.dataset.groupName = group.group_name;
+            
+            let imagesToDisplay = '';
+            const totalImages = group.list_of_images.length;
+            
+            if (totalImages <= 5) {
+                imagesToDisplay = `<div class="single-image-wrapper"><img src="${group.group_thumbnail_url}" alt="${group.group_name}" class="img-fluid"></div>`;
+            } else if (totalImages <= 15) {
+                const firstImage = group.list_of_images[0];
+                const lastImage = group.list_of_images[totalImages - 1];
+                if (firstImage.width > firstImage.height) {
+                    imagesToDisplay = `
+                        <div class="double-image-wrapper row-layout">
+                            <img src="${firstImage.full_client_path}" alt="${group.group_name}_first" class="img-fluid">
+                            <img src="${lastImage.full_client_path}" alt="${group.group_name}_last" class="img-fluid">
+                        </div>
+                    `;
+                } else {
+                    imagesToDisplay = `
+                        <div class="double-image-wrapper column-layout">
+                            <img src="${firstImage.full_client_path}" alt="${group.group_name}_first" class="img-fluid">
+                            <img src="${lastImage.full_client_path}" alt="${group.group_name}_last" class="img-fluid">
+                        </div>
+                    `;
+                }
+            } else if (totalImages <= 30) {
+                const middleIndex = Math.floor(totalImages / 2);
+                imagesToDisplay = `
+                    <div class="row">
+                        <div class="col-6">
+                            <img src="${group.list_of_images[0].full_client_path}" alt="${group.group_name}_first" class="img-fluid">
+                        </div>
+                        <div class="col-6">
+                            <img src="${group.list_of_images[middleIndex].full_client_path}" alt="${group.group_name}_middle" class="img-fluid">
+                        </div>
+                    </div>
+                    <div class="row mt-2">
+                        <div class="col-12">
+                            <img src="${group.list_of_images[totalImages - 1].full_client_path}" alt="${group.group_name}_last" class="img-fluid">
+                        </div>
+                    </div>
                 `;
-                div.onclick = () => toggleGroupSelection(group);
-                grid.appendChild(div);
-            });
-        }
+            } else {
+                const firstIndex = 0;
+                const secondIndex = Math.floor(0.25 * totalImages);
+                const thirdIndex = Math.floor(0.75 * totalImages);
+                const lastIndex = totalImages - 1;
+                imagesToDisplay = `
+                    <div class="row">
+                        <div class="col-6">
+                            <img src="${group.list_of_images[firstIndex].full_client_path}" alt="${group.group_name}_first" class="img-fluid">
+                        </div>
+                        <div class="col-6">
+                            <img src="${group.list_of_images[secondIndex].full_client_path}" alt="${group.group_name}_second" class="img-fluid">
+                        </div>
+                    </div>
+                    <div class="row mt-2">
+                        <div class="col-6">
+                            <img src="${group.list_of_images[thirdIndex].full_client_path}" alt="${group.group_name}_third" class="img-fluid">
+                        </div>
+                        <div class="col-6">
+                            <img src="${group.list_of_images[lastIndex].full_client_path}" alt="${group.group_name}_last" class="img-fluid">
+                        </div>
+                    </div>
+                `;
+            }
+            
+            div.innerHTML = `
+                <div class="image-group">${imagesToDisplay}</div>
+                <h5 class="mt-3">${group.group_name}</h5>
+                <p>${totalImages} images</p>
+            `;
+            div.onclick = () => toggleGroupSelection(group);
+            grid.appendChild(div);
+        });
+    }
 
         function updatePaginationInfo(page) {
             const pageInfo = document.getElementById('pageInfo');
@@ -347,18 +483,6 @@
             filterButton.textContent = `Filter Unprocessed: ${filterUnprocessed ? 'On' : 'Off'}`;
             setCookie('filterUnprocessed', filterUnprocessed, 7);
             fetchGroups(currentPage);
-        }
-
-        function loadImages() {
-            alert('Load Images functionality is not yet implemented.');
-        }
-
-        function viewGroups() {
-            alert('View Groups functionality is not yet implemented.');
-        }
-
-        function classifyImages() {
-            alert('Classify Images functionality is not yet implemented.');
         }
     </script>
 </body>
