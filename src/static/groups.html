@@ -287,6 +287,7 @@
                 endDate = new Date(+values[1]).toISOString().split('T')[0];
                 setCookie('startDate', startDate, 7);
                 setCookie('endDate', endDate, 7);
+                currentPage =1;
                 fetchGroups(currentPage);
             });
         }
