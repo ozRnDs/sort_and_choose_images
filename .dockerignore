@@ -1,0 +1,7 @@
+data/
+deployment/
+.devcontainer/
+.venv/
+pytest_cache/
+.vscode/
+dev/
