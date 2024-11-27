@@ -38,16 +38,6 @@ ignore = [
     "E501", # long lines
 ]
 
-[tool.commitizen]
-name = "cz_conventional_commits"
-tag_format = "$version"
-version_scheme = "pep440"
-version_provider = "poetry"
-update_changelog_on_bump = true
-major_version_zero = true
-[docformatter]
-pre-summary-newline = true
-
 [tool.mypy]
 plugins = [
   "pydantic.mypy"
