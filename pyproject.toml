@@ -4,7 +4,7 @@ readme = "README.md"
 # edit your project name
 name = "sort-and-choose-images"
 # edit your project's version. you can start with 0.1.0 for initial version
-version = "0.3.0"
+version = "0.4.0"
 # edit your project's description
 description = "testing how prefect works"
 # edit your projects' authors
