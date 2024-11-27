@@ -61,8 +61,9 @@ function displayGroups(groups) {
         monthDiv.className = 'month-group';
         monthDiv.innerHTML = `<h5>${month}</h5>`;
         groupedByMonth[month].forEach(group => {
+            const hasClassification = group.list_of_images.some(image => image.classification !== 'None'); // Check if any image is classified
             const div = document.createElement('div');
-            div.className = 'group-item';
+            div.className = `group-item ${hasClassification ? 'has-classification' : ''}`;
             div.dataset.groupName = group.group_name;
             div.onclick = () => fetchGroupImages(group.group_name);
             div.innerHTML = `<strong>${group.group_name}</strong> (${group.list_of_images.length} images)`;
@@ -151,7 +152,7 @@ async function toggleRonInImage(index, groupName, imageName) {
 }
 
 async function updateClassification(index, groupName, imageName, classification) {
-    currentGroupImages[index].classification=classification
+    currentGroupImages[index].classification = classification; // Update in memory
     await fetch('/update_image_classification', {
         method: 'POST',
         headers: {
@@ -163,6 +164,17 @@ async function updateClassification(index, groupName, imageName, classification)
             classification: classification
         })
     });
+
+    // Check if any image in the group has a classification other than "None"
+    const hasClassification = currentGroupImages.some(image => image.classification !== 'None');
+    const groupElement = document.querySelector(`.group-item[data-group-name="${groupName}"]`);
+    if (groupElement) {
+        if (hasClassification) {
+            groupElement.classList.add('has-classification'); // Add grey background
+        } else {
+            groupElement.classList.remove('has-classification'); // Remove grey background
+        }
+    }
 }
 
 function enlargeImage(imageIndex, groupName) {
