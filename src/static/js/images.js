@@ -92,12 +92,15 @@ function displayImages(images, groupName) {
     currentGroupImages = images; // Assign to global variable
     const grid = document.getElementById('grid');
     grid.innerHTML = '';
+
     images.forEach((image, index) => {
+        const resolutionTag = getImageQualityTag(image.size); // Use file size from the server
         const div = document.createElement('div');
         div.className = 'grid-item';
         div.innerHTML = `
             <img src="${image.full_client_path}" alt="Image ${index + 1}" onclick="enlargeImage(${index}, '${groupName}')">
             <div class="mt-2">
+                ${resolutionTag} <!-- Include resolution tag -->
                 <button class="ron-btn ${image.ron_in_image ? '' : 'no'}" onclick="toggleRonInImage(${index}, '${groupName}', '${image.name}')">Ron in the image: ${image.ron_in_image ? 'Yes' : 'No'}</button>
             </div>
             <div class="classify-controls">
@@ -188,11 +191,12 @@ function enlargeImage(imageIndex, groupName) {
     const container = document.createElement('div');
     container.className = 'enlarge-container';
 
-    // Create image element
-    const img = document.createElement('img');
-    img.src = image.full_client_path;
-    img.className = 'enlarge';
-    container.appendChild(img);
+    // Add resolution tag based on file size
+    const resolutionTag = getImageQualityTag(image.size);
+    container.innerHTML = `
+        <img src="${image.full_client_path}" class="enlarge">
+        <div>${resolutionTag}</div>
+    `;
 
     // Add RON tagging button
     const ronButton = document.createElement('button');
@@ -265,8 +269,6 @@ function navigateImage(newIndex, groupName) {
     }
 }
 
-
-
 function highlightSelectedGroup(groupName) {
     // Remove the 'selected-group' class from all group items
     const allGroups = document.querySelectorAll('.group-item');
@@ -276,5 +278,15 @@ function highlightSelectedGroup(groupName) {
     const selectedGroup = Array.from(allGroups).find(group => group.dataset.groupName === groupName);
     if (selectedGroup) {
         selectedGroup.classList.add('selected-group');
+    }
+}
+
+function getImageQualityTag(fileSize) {
+    if (fileSize < 2 * 1024 * 1024) { // Less than 2MB
+        return '<span class="badge bg-warning text-dark">Low Resolution</span>';
+    } else if (fileSize > 3.5 * 1024 * 1024) { // Greater than 4MB
+        return '<span class="badge bg-success">High Resolution</span>';
+    } else {
+        return '<span class="badge bg-primary">Medium Resolution</span>';
     }
 }

@@ -156,3 +156,10 @@ body {
     background-color: #d4edda !important; /* Green background */
     border-color: #c3e6cb !important; /* Matching green border */
 }
+
+.badge {
+    font-size: 0.9em;
+    padding: 5px 10px;
+    border-radius: 5px;
+    margin-right: 5px;
+}
