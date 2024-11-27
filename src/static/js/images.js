@@ -79,6 +79,7 @@ async function fetchGroupImages(groupName) {
         const data = await response.json();
         const group = data.groups.find(g => g.group_name === groupName);
         if (group) {
+            highlightSelectedGroup(groupName);
             displayImages(group.list_of_images, group.group_name);
         }
     } catch (error) {
@@ -168,4 +169,17 @@ function enlargeImage(imageSrc) {
     overlay.appendChild(img);
 
     document.body.appendChild(overlay);
+}
+
+
+function highlightSelectedGroup(groupName) {
+    // Remove the 'selected-group' class from all group items
+    const allGroups = document.querySelectorAll('.group-item');
+    allGroups.forEach(group => group.classList.remove('selected-group'));
+
+    // Add the 'selected-group' class to the clicked group
+    const selectedGroup = Array.from(allGroups).find(group => group.dataset.groupName === groupName);
+    if (selectedGroup) {
+        selectedGroup.classList.add('selected-group');
+    }
 }

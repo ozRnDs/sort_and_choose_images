@@ -120,3 +120,8 @@ body {
     transform: translate(-50%, -50%);
     z-index: 2000;
 }
+
+.selected-group {
+    background-color: #d4edda !important; /* Green background */
+    border-color: #c3e6cb !important; /* Matching green border */
+}
