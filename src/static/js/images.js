@@ -1,3 +1,5 @@
+let currentGroupImages = [];
+
 async function loadImages() {
     const loadingElement = document.getElementById('loading');
     loadingElement.style.display = 'block';
@@ -87,13 +89,14 @@ async function fetchGroupImages(groupName) {
     }
 }
 function displayImages(images, groupName) {
+    currentGroupImages = images; // Assign to global variable
     const grid = document.getElementById('grid');
     grid.innerHTML = '';
     images.forEach((image, index) => {
         const div = document.createElement('div');
         div.className = 'grid-item';
         div.innerHTML = `
-            <img src="${image.full_client_path}" alt="Image ${index + 1}" onclick="enlargeImage('${image.full_client_path}')">
+            <img src="${image.full_client_path}" alt="Image ${index + 1}" onclick="enlargeImage(${index}, '${groupName}')">
             <div class="mt-2">
                 <button class="ron-btn ${image.ron_in_image ? '' : 'no'}" onclick="toggleRonInImage(${index}, '${groupName}', '${image.name}')">Ron in the image: ${image.ron_in_image ? 'Yes' : 'No'}</button>
             </div>
@@ -145,6 +148,7 @@ async function toggleRonInImage(index, groupName, imageName) {
 }
 
 async function updateClassification(index, groupName, imageName, classification) {
+    currentGroupImages[index].classification=classification
     await fetch('/update_image_classification', {
         method: 'POST',
         headers: {
@@ -158,18 +162,109 @@ async function updateClassification(index, groupName, imageName, classification)
     });
 }
 
-function enlargeImage(imageSrc) {
+function enlargeImage(imageIndex, groupName) {
+    const images = currentGroupImages;
+    const image = images[imageIndex];
+
+    // Remove existing overlay if present
+    const existingOverlay = document.querySelector('.enlarge-overlay');
+    if (existingOverlay) {
+        document.body.removeChild(existingOverlay);
+    }
+
+    // Create overlay
     const overlay = document.createElement('div');
     overlay.className = 'enlarge-overlay';
-    overlay.onclick = () => document.body.removeChild(overlay);
 
+    // Close overlay on clicking the background
+    overlay.onclick = (e) => {
+        if (e.target === overlay) {
+            document.body.removeChild(overlay);
+            displayImages(currentGroupImages, groupName); // Refresh the image grid on exit
+        }
+    };
+
+    // Create enlarged image container
+    const container = document.createElement('div');
+    container.className = 'enlarge-container';
+
+    // Create image element
     const img = document.createElement('img');
-    img.src = imageSrc;
+    img.src = image.full_client_path;
     img.className = 'enlarge';
-    overlay.appendChild(img);
+    container.appendChild(img);
 
+    // Add RON tagging button
+    const ronButton = document.createElement('button');
+    ronButton.className = `ron-btn ${image.ron_in_image ? '' : 'no'}`;
+    ronButton.textContent = `Ron in the image: ${image.ron_in_image ? 'Yes' : 'No'}`;
+    ronButton.onclick = async () => {
+        const newValue = !image.ron_in_image;
+        image.ron_in_image = newValue;
+        ronButton.textContent = `Ron in the image: ${newValue ? 'Yes' : 'No'}`;
+        ronButton.classList.toggle('no', !newValue);
+
+        await fetch('/update_ron_in_image', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                group_name: groupName,
+                image_name: image.name,
+                ron_in_image: newValue,
+            }),
+        });
+    };
+    container.appendChild(ronButton);
+
+    // Add classification buttons
+    const classifyControls = document.createElement('div');
+    classifyControls.className = 'classify-controls';
+    classifyControls.innerHTML = `
+        <div class="btn-group" role="group" aria-label="Image Classification">
+            <input type="radio" class="btn-check" name="classification" value="Historical" id="historical" ${image.classification === 'Historical' ? 'checked' : ''}>
+            <label class="btn btn-outline-primary" for="historical" onclick="updateClassification(${imageIndex}, '${groupName}', '${image.name}', 'Historical')">Historical</label>
+
+            <input type="radio" class="btn-check" name="classification" value="Nature" id="nature" ${image.classification === 'Nature' ? 'checked' : ''}>
+            <label class="btn btn-outline-primary" for="nature" onclick="updateClassification(${imageIndex}, '${groupName}', '${image.name}', 'Nature')">Nature</label>
+
+            <input type="radio" class="btn-check" name="classification" value="Family Trips" id="family-trips" ${image.classification === 'Family Trips' ? 'checked' : ''}>
+            <label class="btn btn-outline-primary" for="family-trips" onclick="updateClassification(${imageIndex}, '${groupName}', '${image.name}', 'Family Trips')">Family Trips</label>
+
+            <input type="radio" class="btn-check" name="classification" value="Family Gatherings" id="family-gatherings" ${image.classification === 'Family Gatherings' ? 'checked' : ''}>
+            <label class="btn btn-outline-primary" for="family-gatherings" onclick="updateClassification(${imageIndex}, '${groupName}', '${image.name}', 'Family Gatherings')">Family Gatherings</label>
+
+            <input type="radio" class="btn-check" name="classification" value="Archaeology" id="archaeology" ${image.classification === 'Archaeology' ? 'checked' : ''}>
+            <label class="btn btn-outline-primary" for="archaeology" onclick="updateClassification(${imageIndex}, '${groupName}', '${image.name}', 'Archaeology')">Archaeology</label>
+
+            <input type="radio" class="btn-check" name="classification" value="None" id="none" ${image.classification === 'None' ? 'checked' : ''}>
+            <label class="btn btn-outline-primary" for="none" onclick="updateClassification(${imageIndex}, '${groupName}', '${image.name}', 'None')">None</label>
+        </div>
+    `;
+    container.appendChild(classifyControls);
+
+    // Add navigation buttons
+    const navigation = document.createElement('div');
+    navigation.className = 'navigation-controls';
+    navigation.innerHTML = `
+        <button class="btn btn-secondary" onclick="navigateImage(${imageIndex - 1}, '${groupName}')" ${imageIndex === 0 ? 'disabled' : ''}>Previous</button>
+        <button class="btn btn-secondary" onclick="navigateImage(${imageIndex + 1}, '${groupName}')" ${imageIndex === images.length - 1 ? 'disabled' : ''}>Next</button>
+    `;
+    container.appendChild(navigation);
+
+    overlay.appendChild(container);
     document.body.appendChild(overlay);
 }
+
+
+// Navigate to the next or previous image
+function navigateImage(newIndex, groupName) {
+    if (newIndex >= 0 && newIndex < currentGroupImages.length) {
+        enlargeImage(newIndex, groupName);
+    }
+}
+
 
 
 function highlightSelectedGroup(groupName) {
