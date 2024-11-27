@@ -10,7 +10,7 @@ System to help screen thousands of images and choosing the best for book/video p
 To create the Docker image for your FastAPI application, use the following command:
 
 ```bash
-docker build -f deployment/Dockerfile -t sort_images:$(cz version -p) .
+docker build -f deployment/Dockerfile -t ozrnds/sort_images:$(cz version -p) .
 ```
 
 - `my-fastapi-app`: The name/tag for the Docker image.
