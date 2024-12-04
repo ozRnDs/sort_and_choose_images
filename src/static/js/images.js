@@ -297,8 +297,8 @@ function getImageQualityTag(fileSize) {
     if (fileSize < 2 * 1024 * 1024) { // Less than 2MB
         return '<span class="badge bg-warning text-dark">Low Resolution</span>';
     } else if (fileSize > 3.5 * 1024 * 1024) { // Greater than 4MB
-        return '<span class="badge bg-success">High Resolution</span>';
+        return '<span class="badge bg-lilac">High Resolution</span>';
     } else {
-        return '<span class="badge bg-primary">Medium Resolution</span>';
+        return '<span class="badge bg-burnt-orange">Medium Resolution</span>';
     }
 }
