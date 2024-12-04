@@ -168,3 +168,13 @@ body {
     background-color: #d4edda !important; /* Green background */
     border-color: #c3e6cb !important; /* Matching green border */
 }
+
+.bg-lilac {
+    background-color: #A675A6; /* Lilac color */
+    color: white; /* Optional: adjust text color for contrast */
+}
+
+.bg-burnt-orange {
+    background-color: #CC5500; /* Burnt orange color */
+    color: white; /* Ensures good text contrast */
+}
