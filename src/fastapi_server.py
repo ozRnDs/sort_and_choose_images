@@ -1,3 +1,4 @@
+import asyncio
 import os
 import pickle
 import re
@@ -6,19 +7,37 @@ from datetime import datetime
 from typing import Dict, List
 
 import exifread
-from fastapi import FastAPI, HTTPException, Query
+import uvicorn
+from fastapi import FastAPI, HTTPException, Query, exceptions, status
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from loguru import logger
 from pydantic import BaseModel
 
+from .config import AppConfig
 from .models.images import ImageMetadata
+from .services.face_reid import FaceRecognitionService
+from .services.redis_service import RedisInterface
 
+app_config = AppConfig()
 app = FastAPI()
 
 PICKLE_FILE = "/data/image_metadata.pkl"
 GROUPED_FILE = "/data/grouped_metadata.pkl"
 STATIC_FOLDER_LOCATION = "src/static"
 BASE_PATH = "/images"
+
+redis_service = None
+face_recognition_service = None
+try:
+    redis_service = RedisInterface()
+    face_recognition_service = FaceRecognitionService(
+        base_url=app_config.BASE_URL,
+        redis_interface=redis_service,
+        progress_file=f"{app_config.DATA_BASE_PATH}/face_recognition_progress.pkl",
+    )
+except Exception as err:
+    logger.error(f"Failed to initialize redis or face recognition service: {err}")
 
 
 # Define Pydantic model for grouped information
@@ -66,7 +85,7 @@ app.mount("/images", StaticFiles(directory=BASE_PATH), name="images")
 
 
 # Endpoint to serve the HTML file
-@app.get("/", response_class=HTMLResponse)
+@app.get("/", response_class=HTMLResponse, tags=["HTML"])
 async def get_index(success: bool = False):
     if success:
         return HTMLResponse(
@@ -200,7 +219,7 @@ def sort_and_save_groups(grouped_metadata: List[Dict]):
 
 
 # Update the load_images function to use the new extract_image_metadata function
-@app.get("/load_images")
+@app.get("/load_images", tags=["Admin"])
 async def load_images():
     images = []
     for root, _, files in os.walk(BASE_PATH):
@@ -242,7 +261,9 @@ async def load_images():
 
 
 # Endpoint to get grouped images for preview with pagination and filtering
-@app.get("/get_groups_paginated", response_model=PaginatedGroupsResponse)
+@app.get(
+    "/get_groups_paginated", response_model=PaginatedGroupsResponse, tags=["Groups"]
+)
 async def get_groups_paginated(
     page: int = Query(1, ge=1),
     page_size: int = Query(10, ge=1),
@@ -315,7 +336,7 @@ async def get_groups_paginated(
 
 
 # Endpoint to toggle group selection
-@app.post("/toggle_group_selection")
+@app.post("/toggle_group_selection", tags=["Groups"])
 async def toggle_group_selection(group_select: ToggleGroupSelection):
     # Load grouped metadata from pickle file
     if not os.path.exists(GROUPED_FILE):
@@ -346,7 +367,7 @@ async def toggle_group_selection(group_select: ToggleGroupSelection):
 
 
 # Endpoint to update the image classification
-@app.post("/update_image_classification")
+@app.post("/update_image_classification", tags=["Images"])
 async def update_image_classification(request: UpdateClassificationRequest):
     # Load existing grouped metadata
     if not os.path.exists(GROUPED_FILE):
@@ -376,7 +397,7 @@ async def update_image_classification(request: UpdateClassificationRequest):
 
 
 # Endpoint to update the 'Ron in the image' flag
-@app.post("/update_ron_in_image")
+@app.post("/update_ron_in_image", tags=["Images"])
 async def update_ron_in_image(request: UpdateRonInImageRequest):
     # Load existing grouped metadata
     if not os.path.exists(GROUPED_FILE):
@@ -406,7 +427,7 @@ async def update_ron_in_image(request: UpdateRonInImageRequest):
 
 
 # Endpoint to get minimum and maximum dates in the groups
-@app.get("/get_min_max_dates")
+@app.get("/get_min_max_dates", tags=["Groups"])
 async def get_min_max_dates():
     if not os.path.exists(GROUPED_FILE):
         return JSONResponse(
@@ -437,5 +458,80 @@ async def get_min_max_dates():
     )
 
 
+@app.post("/scripts/face_detection/load_images", tags=["Admin", "Face Recognition"])
+async def face_detect():
+    if face_recognition_service is None:
+        raise exceptions.HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Face Recognition Service is not available",
+        )
+    images = []
+    for root, _, files in os.walk(BASE_PATH):
+        for file in files:
+            if file.lower().endswith(
+                (".png", ".jpg", ".jpeg", ".tiff", ".bmp", ".gif")
+            ):
+                images.append(os.path.join(root, file))
+
+    loaded_images = face_recognition_service.load_images(images)
+    await face_recognition_service.start()
+    status_dict = face_recognition_service.get_status()
+    # async with httpx.AsyncClient() as client:
+    #     httpx_tasks = []
+    #     done_tasks = []
+    #     for image in images:
+    #         if len(httpx_tasks)>10:
+    #             done,pending = await asyncio.wait(httpx_tasks,return_when=asyncio.FIRST_COMPLETED)
+    #             done_tasks += list(done)
+    #             httpx_tasks=list(pending)
+    #         with open(image,"rb") as file:
+    #             httpx_tasks.append(asyncio.create_task(client.post(FACE_DETECTION_URL, files=("images",(os.path.basename(image),file,"image/jpeg")))))
+    return {"number_of_loaded_images": loaded_images, "status": status_dict}
+
+
+@app.get("/scripts/face_detection/status", tags=["Face Recognition"])
+async def get_face_detection_status():
+    if face_recognition_service is None:
+        raise exceptions.HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Face Recognition Service is not available",
+        )
+    status_dict = face_recognition_service.get_status()
+
+    return status_dict
+
+
+@app.get("/script/face_detection/restart", tags=["Face Recognition"])
+async def restart_face_recognition():
+    if face_recognition_service is None:
+        raise exceptions.HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Face Recognition Service is not available",
+        )
+    await face_recognition_service.start()
+    return face_recognition_service.get_status()
+
+
+async def start_fastapi_server():
+    # Import your FastAPI app (replace `app` with your FastAPI instance name)
+    config = uvicorn.Config(app, host="0.0.0.0", port=8000, log_level="info")
+    server = uvicorn.Server(config)
+    await server.serve()
+
+
+async def main():
+    task_list = []
+    if face_recognition_service:
+        load_images_task = asyncio.create_task(face_recognition_service.load_progress())
+        task_list.append(load_images_task)
+
+    run_fast_api_server = asyncio.create_task(start_fastapi_server())
+    task_list.append(run_fast_api_server)
+
+    done, pending = await asyncio.wait(task_list)
+
+
 # To run the FastAPI server, you can use:
 # uvicorn backend:app --reload
+if __name__ == "__main__":
+    asyncio.run(main())

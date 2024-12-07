@@ -4,17 +4,25 @@
     // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
+        // {
+        //     "name": "Python: FastAPI (Uvicorn)",
+        //     "type": "debugpy",
+        //     "request": "launch",
+        //     "module": "uvicorn",
+        //     "args": [
+        //         "src.fastapi_server:app",          // Replace 'backend' with the filename of your FastAPI script (without the .py extension)
+        //         "--reload"
+        //     ],
+        //     "jinja": true
+        // },
         {
-            "name": "Python: FastAPI (Uvicorn)",
+            "name": "Sort Main File",
             "type": "debugpy",
             "request": "launch",
-            "module": "uvicorn",
-            "args": [
-                "src.fastapi_server:app",          // Replace 'backend' with the filename of your FastAPI script (without the .py extension)
-                "--reload"
-            ],
-            "jinja": true
-        },
+            "module": "src.fastapi_server",
+            "console": "integratedTerminal",
+            "justMyCode": true
+          },
         {
             "name": "Explore Pickle",
             "type": "python",
