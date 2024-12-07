@@ -8,9 +8,10 @@ from typing import Dict, List
 
 import exifread
 import uvicorn
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, exceptions, status
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from loguru import logger
 from pydantic import BaseModel
 
 from .config import AppConfig
@@ -26,13 +27,17 @@ GROUPED_FILE = "/data/grouped_metadata.pkl"
 STATIC_FOLDER_LOCATION = "src/static"
 BASE_PATH = "/images"
 
-
-redis_service = RedisInterface()
-face_recognition_service = FaceRecognitionService(
-    base_url=app_config.BASE_URL,
-    redis_interface=redis_service,
-    progress_file=f"{app_config.DATA_BASE_PATH}/face_recognition_progress.pkl",
-)
+redis_service = None
+face_recognition_service = None
+try:
+    redis_service = RedisInterface()
+    face_recognition_service = FaceRecognitionService(
+        base_url=app_config.BASE_URL,
+        redis_interface=redis_service,
+        progress_file=f"{app_config.DATA_BASE_PATH}/face_recognition_progress.pkl",
+    )
+except Exception as err:
+    logger.error(f"Failed to initialize redis or face recognition service: {err}")
 
 
 # Define Pydantic model for grouped information
@@ -455,6 +460,11 @@ async def get_min_max_dates():
 
 @app.post("/scripts/face_detection/load_images", tags=["Admin", "Face Recognition"])
 async def face_detect():
+    if face_recognition_service is None:
+        raise exceptions.HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Face Recognition Service is not available",
+        )
     images = []
     for root, _, files in os.walk(BASE_PATH):
         for file in files:
@@ -481,6 +491,11 @@ async def face_detect():
 
 @app.get("/scripts/face_detection/status", tags=["Face Recognition"])
 async def get_face_detection_status():
+    if face_recognition_service is None:
+        raise exceptions.HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Face Recognition Service is not available",
+        )
     status_dict = face_recognition_service.get_status()
 
     return status_dict
@@ -488,6 +503,11 @@ async def get_face_detection_status():
 
 @app.get("/script/face_detection/restart", tags=["Face Recognition"])
 async def restart_face_recognition():
+    if face_recognition_service is None:
+        raise exceptions.HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Face Recognition Service is not available",
+        )
     await face_recognition_service.start()
     return face_recognition_service.get_status()
 
@@ -500,10 +520,15 @@ async def start_fastapi_server():
 
 
 async def main():
-    load_images_task = asyncio.create_task(face_recognition_service.load_progress())
-    run_fast_api_server = asyncio.create_task(start_fastapi_server())
+    task_list = []
+    if face_recognition_service:
+        load_images_task = asyncio.create_task(face_recognition_service.load_progress())
+        task_list.append(load_images_task)
 
-    done, pending = await asyncio.wait([load_images_task, run_fast_api_server])
+    run_fast_api_server = asyncio.create_task(start_fastapi_server())
+    task_list.append(run_fast_api_server)
+
+    done, pending = await asyncio.wait(task_list)
 
 
 # To run the FastAPI server, you can use:
