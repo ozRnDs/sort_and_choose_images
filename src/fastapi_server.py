@@ -232,7 +232,7 @@ def load_groups_from_file() -> List[Dict]:
 # Update the load_images function to use the new extract_image_metadata function
 @app.get("/load_images", tags=["Admin"])
 async def load_images():
-    images = []
+    images: List[ImageMetadata] = []
     for root, _, files in os.walk(BASE_PATH):
         for file in files:
             if file.lower().endswith(
