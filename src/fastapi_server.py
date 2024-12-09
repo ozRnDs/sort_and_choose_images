@@ -218,6 +218,17 @@ def sort_and_save_groups(grouped_metadata: List[Dict]):
         pickle.dump(grouped_metadata, f)
 
 
+def load_groups_from_file() -> List[Dict]:
+    # Load existing grouped metadata
+    if not os.path.exists(GROUPED_FILE):
+        raise HTTPException(status_code=404, detail="Grouped metadata not found")
+
+    with open(GROUPED_FILE, "rb") as f:
+        grouped_metadata = pickle.load(f)
+
+    return grouped_metadata
+
+
 # Update the load_images function to use the new extract_image_metadata function
 @app.get("/load_images", tags=["Admin"])
 async def load_images():
@@ -272,13 +283,7 @@ async def get_groups_paginated(
     end_date: str = Query(None),
 ):
     # Load grouped metadata from pickle file
-    if not os.path.exists(GROUPED_FILE):
-        return JSONResponse(
-            content={"error": "No grouped metadata found"}, status_code=404
-        )
-
-    with open(GROUPED_FILE, "rb") as f:
-        grouped_metadata = pickle.load(f)
+    grouped_metadata = load_groups_from_file()
 
     # Filter groups by selection
     grouped_metadata = [
@@ -339,13 +344,7 @@ async def get_groups_paginated(
 @app.post("/toggle_group_selection", tags=["Groups"])
 async def toggle_group_selection(group_select: ToggleGroupSelection):
     # Load grouped metadata from pickle file
-    if not os.path.exists(GROUPED_FILE):
-        return JSONResponse(
-            content={"error": "No grouped metadata found"}, status_code=404
-        )
-
-    with open(GROUPED_FILE, "rb") as f:
-        grouped_metadata = pickle.load(f)
+    grouped_metadata = load_groups_from_file()
 
     # Update the selection for the specified group
     group_found = False
@@ -369,13 +368,7 @@ async def toggle_group_selection(group_select: ToggleGroupSelection):
 # Endpoint to update the image classification
 @app.post("/update_image_classification", tags=["Images"])
 async def update_image_classification(request: UpdateClassificationRequest):
-    # Load existing grouped metadata
-    if not os.path.exists(GROUPED_FILE):
-        raise HTTPException(status_code=404, detail="Grouped metadata not found")
-
-    with open(GROUPED_FILE, "rb") as f:
-        grouped_metadata = pickle.load(f)
-
+    grouped_metadata = load_groups_from_file()
     # Find the group and update the classification for the specific image
     group_found = False
     for group in grouped_metadata:
@@ -400,11 +393,7 @@ async def update_image_classification(request: UpdateClassificationRequest):
 @app.post("/update_ron_in_image", tags=["Images"])
 async def update_ron_in_image(request: UpdateRonInImageRequest):
     # Load existing grouped metadata
-    if not os.path.exists(GROUPED_FILE):
-        raise HTTPException(status_code=404, detail="Grouped metadata not found")
-
-    with open(GROUPED_FILE, "rb") as f:
-        grouped_metadata = pickle.load(f)
+    grouped_metadata = load_groups_from_file()
 
     # Find the group and update the 'Ron in image' flag for the specific image
     group_found = False
@@ -429,13 +418,7 @@ async def update_ron_in_image(request: UpdateRonInImageRequest):
 # Endpoint to get minimum and maximum dates in the groups
 @app.get("/get_min_max_dates", tags=["Groups"])
 async def get_min_max_dates():
-    if not os.path.exists(GROUPED_FILE):
-        return JSONResponse(
-            content={"error": "No grouped metadata found"}, status_code=404
-        )
-
-    with open(GROUPED_FILE, "rb") as f:
-        grouped_metadata = pickle.load(f)
+    grouped_metadata = load_groups_from_file()
 
     dates = []
     for group in grouped_metadata:
