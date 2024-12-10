@@ -1,4 +1,5 @@
 import asyncio
+import io
 import os
 import pickle
 import re
@@ -9,9 +10,10 @@ from typing import Dict, List
 import exifread
 import uvicorn
 from fastapi import FastAPI, HTTPException, Query, exceptions, status
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from loguru import logger
+from PIL import Image
 from pydantic import BaseModel
 
 from .config import AppConfig
@@ -500,6 +502,102 @@ async def get_embedding_by_face_id(face_id: str) -> Face:
     raise exceptions.HTTPException(
         status=status.HTTP_404_NOT_FOUND, detail="Face was not found"
     )
+
+
+@app.get("/face/{face_id}/image", tags=["Face Management"])
+async def get_image_for_face(face_id: str):
+    """
+    Get the cropped image for a face based on its bounding box (bbox).
+
+    Args:
+        face_id (str): The unique identifier for the face.
+
+    Returns:
+        Cropped image as a streaming response.
+    """
+    # Retrieve the face data
+    faces = face_db_service.get_faces(query={"face_id": face_id})
+    if not faces:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Face was not found",
+        )
+
+    result_face = faces[0]
+    image_path = result_face.image_full_path
+    bbox = result_face.bbox  # bbox is expected to be a list of [x, y, width, height]
+
+    # Load the image using Pillow
+    try:
+        image = Image.open(image_path)
+    except FileNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Image file not found: {image_path}",
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to load image: {e}",
+        )
+
+    # Crop the face using bbox
+    try:
+        x1, y1, x2, y2 = bbox
+        cropped_face = image.crop((x1, y1, x2, y2))  # Crop using x1, y1, x2, y2
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to crop image: {e}",
+        )
+
+    # Save the cropped face to an in-memory buffer
+    buffer = io.BytesIO()
+    cropped_face.save(buffer, format="JPEG")
+    buffer.seek(0)
+
+    # Return the cropped image as a streaming response
+    return StreamingResponse(buffer, media_type="image/jpeg")
+
+
+@app.get("/face/list/ron_in_image", tags=["Face Management"])
+async def get_paginated_faces_with_ron_in_image(
+    page: int = Query(1, ge=1, description="Page number"),
+    page_size: int = Query(10, ge=1, le=100, description="Number of items per page"),
+) -> List[Face]:
+    """
+    Paginated endpoint to get faces where 'ron_in_image' is True.
+
+    Args:
+        page (int): The page number to retrieve.
+        page_size (int): The number of items per page.
+
+    Returns:
+        List[Face]: Paginated list of faces matching the rule.
+    """
+    # Retrieve all faces matching the rule
+    faces = face_db_service.get_faces(query={"ron_in_image": True})
+
+    # Handle no matches found
+    if not faces:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No faces found with 'ron_in_image' set to True",
+        )
+
+    # Implement pagination
+    start_index = (page - 1) * page_size
+    end_index = start_index + page_size
+    paginated_faces = faces[start_index:end_index]
+
+    # Handle case where page is out of range
+    if not paginated_faces:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No faces found for page {page}",
+        )
+
+    return paginated_faces
 
 
 async def start_fastapi_server():
