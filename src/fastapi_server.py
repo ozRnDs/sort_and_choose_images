@@ -15,15 +15,17 @@ from loguru import logger
 from pydantic import BaseModel
 
 from .config import AppConfig
-from .models.images import ImageMetadata
 from .services.face_reid import FaceRecognitionService
+from .services.faces_db_service import FaceDBService
+from .services.groups_db import GROUPED_FILE, load_groups_from_file
 from .services.redis_service import RedisInterface
+from .utils.model_pydantic import Face, GroupMetadata, ImageMetadata
 
 app_config = AppConfig()
 app = FastAPI()
 
 PICKLE_FILE = "/data/image_metadata.pkl"
-GROUPED_FILE = "/data/grouped_metadata.pkl"
+FACE_DB = "/data/face_db.json"
 STATIC_FOLDER_LOCATION = "src/static"
 BASE_PATH = "/images"
 
@@ -31,27 +33,15 @@ redis_service = None
 face_recognition_service = None
 try:
     redis_service = RedisInterface()
+    face_db_service = FaceDBService(db_path=FACE_DB)
     face_recognition_service = FaceRecognitionService(
         base_url=app_config.BASE_URL,
         redis_interface=redis_service,
+        face_db_service=face_db_service,
         progress_file=f"{app_config.DATA_BASE_PATH}/face_recognition_progress.pkl",
     )
 except Exception as err:
     logger.error(f"Failed to initialize redis or face recognition service: {err}")
-
-
-# Define Pydantic model for grouped information
-class GroupMetadata(BaseModel):
-    group_name: str
-    group_thumbnail_url: str
-    list_of_images: List[Dict]
-    selection: str = (
-        "unprocessed"  # Can be "unprocessed", "interesting", or "not interesting"
-    )
-
-    @property
-    def image_count(self):
-        return len(self.list_of_images)
 
 
 # Define Pydantic model for paginated response
@@ -216,17 +206,6 @@ def sort_and_save_groups(grouped_metadata: List[Dict]):
     grouped_metadata.sort(key=lambda x: x.get("group_name", "Unknown"))
     with open(GROUPED_FILE, "wb") as f:
         pickle.dump(grouped_metadata, f)
-
-
-def load_groups_from_file() -> List[Dict]:
-    # Load existing grouped metadata
-    if not os.path.exists(GROUPED_FILE):
-        raise HTTPException(status_code=404, detail="Grouped metadata not found")
-
-    with open(GROUPED_FILE, "rb") as f:
-        grouped_metadata = pickle.load(f)
-
-    return grouped_metadata
 
 
 # Update the load_images function to use the new extract_image_metadata function
@@ -448,13 +427,11 @@ async def face_detect():
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Face Recognition Service is not available",
         )
+    groups_metadata = load_groups_from_file()
     images = []
-    for root, _, files in os.walk(BASE_PATH):
-        for file in files:
-            if file.lower().endswith(
-                (".png", ".jpg", ".jpeg", ".tiff", ".bmp", ".gif")
-            ):
-                images.append(os.path.join(root, file))
+    for group in groups_metadata:
+        group = GroupMetadata(**group)
+        images += group.list_of_images
 
     loaded_images = face_recognition_service.load_images(images)
     await face_recognition_service.start()
@@ -484,7 +461,7 @@ async def get_face_detection_status():
     return status_dict
 
 
-@app.get("/script/face_detection/restart", tags=["Face Recognition"])
+@app.post("/script/face_detection/restart", tags=["Face Recognition"])
 async def restart_face_recognition():
     if face_recognition_service is None:
         raise exceptions.HTTPException(
@@ -493,6 +470,36 @@ async def restart_face_recognition():
         )
     await face_recognition_service.start()
     return face_recognition_service.get_status()
+
+
+@app.post("/script/face_detection/stop", tags=["Face Recognition"])
+async def stop_face_recognition():
+    if face_recognition_service is None:
+        raise exceptions.HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Face Recognition Service is not available",
+        )
+    face_recognition_service.stop()
+    await asyncio.sleep(0.3)
+    return face_recognition_service.get_status()
+
+
+@app.get("/face/{face_id}/embedding", tags=["Face Recognition"])
+async def get_embedding_by_face_id(face_id: str) -> Face:
+    if redis_service is None:
+        raise exceptions.HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Redis DB is not available",
+        )
+    embedding = redis_service.get_embedding(face_id=face_id)
+    faces = face_db_service.get_faces(query={"face_id": face_id})
+    if faces:
+        result_face = faces[0]
+        result_face.embedding = embedding
+        return result_face
+    raise exceptions.HTTPException(
+        status=status.HTTP_404_NOT_FOUND, detail="Face was not found"
+    )
 
 
 async def start_fastapi_server():
