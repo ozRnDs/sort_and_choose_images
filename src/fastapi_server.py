@@ -474,6 +474,17 @@ async def restart_face_recognition():
     return face_recognition_service.get_status()
 
 
+@app.post("/script/face_detection/retry", tags=["Face Recognition"])
+async def retry_face_recognition():
+    if face_recognition_service is None:
+        raise exceptions.HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Face Recognition Service is not available",
+        )
+    await face_recognition_service.retry()
+    return face_recognition_service.get_status()
+
+
 @app.post("/script/face_detection/stop", tags=["Face Recognition"])
 async def stop_face_recognition():
     if face_recognition_service is None:
