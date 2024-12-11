@@ -87,20 +87,28 @@ class FaceRecognitionService:
 
         # Initialize TinyDB
         self._db = TinyDB(db_path, storage=CachingMiddleware(JSONStorage))
-        self._images_table = self._db.table("images")
-        self._progress_table = self._db.table("progress")
 
     async def load_progress(self):
-        logger.info("Start loading recognition progress data")
-        progress_data = self._progress_table.get(doc_id=1)
+        """
+        Loads progress data from TinyDB.
+        """
+        logger.info("Loading progress from TinyDB.")
+
+        # Load metadata
+        progress_query = Query()
+        progress_data = self._db.get(progress_query.id == "progress_metadata")
         if progress_data:
-            self.images = [
-                ImageMetadata(**image) for image in progress_data.get("images", [])
-            ]
             self.processed_images_names = progress_data.get("processed_images", [])
             self.progress = progress_data.get("progress", 0)
             self.failed_images_names = progress_data.get("failed_images", [])
-            logger.info("Progress loaded. Resuming from the last saved state.")
+
+        # Load images
+        # self.images = [
+        #     ImageMetadata(**doc)
+        #     for doc in self._db.search(Query().full_client_path.exists())
+        # ]
+
+        logger.info("Progress loaded successfully.")
 
     def migrate_pickle_to_tinydb(self):
         """
@@ -115,22 +123,16 @@ class FaceRecognitionService:
             with open(self._progress_file, "rb") as file:
                 progress_data = pickle.load(file)
 
-            # Transform progress data for TinyDB
-            images = progress_data.get("images", [])
-            processed_images = progress_data.get("processed_images", [])
-            progress = progress_data.get("progress", 0)
-            failed_images = progress_data.get("failed_images", [])
+            # Load data into the service attributes
+            self.images = [
+                ImageMetadata(**image) for image in progress_data.get("images", [])
+            ]
+            self.processed_images_names = progress_data.get("processed_images", [])
+            self.progress = progress_data.get("progress", 0)
+            self.failed_images_names = progress_data.get("failed_images", [])
 
-            # Save to TinyDB
-            self._progress_table.upsert(
-                {
-                    "images": images,
-                    "processed_images": processed_images,
-                    "progress": progress,
-                    "failed_images": failed_images,
-                },
-                doc_ids=[1],
-            )
+            # Use persist_progress to save data to TinyDB
+            self.persist_progress()
 
             logger.info("Migration completed successfully.")
         except (pickle.PickleError, EOFError, FileNotFoundError) as e:
@@ -363,20 +365,22 @@ class FaceRecognitionService:
         """
         Persists the current progress to TinyDB incrementally.
         """
-        # Update or insert each image's progress individually
-        for image in self.images:
-            self._images_table.upsert(
-                image.model_dump(), Query().full_client_path == image.full_client_path
-            )
+        logger.info("Persisting progress to TinyDB.")
 
-        # Update the metadata like processed_images, progress, and failed_images
+        # Save metadata as a unique document
         progress_query = Query()
-        self._progress_table.upsert(
+        self._db.upsert(
             {
+                "id": "progress_metadata",  # Unique ID for progress metadata
                 "processed_images": self.processed_images_names,
                 "progress": self.progress,
                 "failed_images": self.failed_images_names,
             },
-            progress_query.id
-            == "progress_metadata",  # Use a unique field to identify metadata
+            progress_query.id == "progress_metadata",
         )
+
+        # Save each image as a unique document
+        for image in self.images:
+            self._db.upsert(
+                image.model_dump(), Query().full_client_path == image.full_client_path
+            )
