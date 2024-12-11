@@ -5,7 +5,7 @@ from ..utils.model_pydantic import Face
 
 
 class RedisInterface:
-    def __init__(self, host="0.0.0.0", port=6379, db=0):
+    def __init__(self, host="redis-stack", port=6379, db=0):
         """
         Initialize the Redis client.
         """
