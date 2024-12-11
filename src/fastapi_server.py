@@ -35,13 +35,14 @@ BASE_PATH = "/images"
 redis_service = None
 face_recognition_service = None
 try:
-    redis_service = RedisInterface()
+    redis_service = RedisInterface(host=app_config.REDIS_URL)
     face_db_service = FaceDBService(db_path=FACE_DB)
     face_recognition_service = FaceRecognitionService(
-        base_url=app_config.BASE_URL,
+        base_url=app_config.FACE_DETECTION_URL,
         redis_interface=redis_service,
         face_db_service=face_db_service,
         progress_file=f"{app_config.DATA_BASE_PATH}/face_recognition_progress.pkl",
+        db_path=f"{app_config.DATA_BASE_PATH}/face_recognition_progress.json",
     )
 except Exception as err:
     logger.error(f"Failed to initialize redis or face recognition service: {err}")
