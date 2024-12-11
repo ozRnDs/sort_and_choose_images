@@ -1,3 +1,10 @@
+## 0.7.0 (2024-12-11)
+
+### Feat
+
+- **fastapi_server**: Add face-recognition retry entrypoint
+- **FaceRecognitionService**: Add retry logic for failed images
+
 ## 0.6.0 (2024-12-10)
 
 ### Feat
