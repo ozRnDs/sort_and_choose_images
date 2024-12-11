@@ -81,6 +81,7 @@ class FaceRecognitionService:
         self._processing_task = None
 
     async def load_progress(self):
+        logger.info("Start loading recognition progress data")
         if os.path.exists(self._progress_file):
             try:
                 with open(self._progress_file, "rb") as file:
@@ -94,7 +95,7 @@ class FaceRecognitionService:
                     )
                     self.progress = progress_data.get("progress", 0)
                     self.failed_images_names = progress_data.get("failed_images", [])
-                    print("Progress loaded. Resuming from the last saved state.")
+                    logger.info("Progress loaded. Resuming from the last saved state.")
             except (pickle.PickleError, EOFError) as e:
                 print(f"Failed to load progress file: {e}")
 
