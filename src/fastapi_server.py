@@ -24,6 +24,7 @@ from .services.redis_service import RedisInterface
 from .utils.model_pydantic import Face, GroupMetadata, ImageMetadata
 
 app_config = AppConfig()
+app_config = AppConfig()
 app = FastAPI()
 
 PICKLE_FILE = "/data/image_metadata.pkl"
