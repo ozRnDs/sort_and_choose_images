@@ -7,4 +7,6 @@ class AppConfig(BaseSettings):
     STATIC_FOLDER_LOCATION: str = "src/static"
     IMAGE_BASE_PATH: str = "/images"
     DATA_BASE_PATH: str = "/data"
-    BASE_URL: str = "http://localhost:8001/"
+    FACE_DETECTION_URL: str = "http://localhost:5010"
+    REDIS_URL: str = "redis-stack"
+    REDIS_PORT: int = 6379
