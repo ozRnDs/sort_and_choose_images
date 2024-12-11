@@ -20,4 +20,4 @@ COPY src /app/src
 
 EXPOSE 8000
 
-ENTRYPOINT ["python", "-m", "src.fastapi_server"]
+ENTRYPOINT ["poetry", "run", "python", "-m", "src.fastapi_server"]
