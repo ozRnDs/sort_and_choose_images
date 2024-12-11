@@ -1,7 +1,14 @@
+from enum import Enum
 from typing import List, Optional
 from uuid import uuid4
 
 from pydantic import BaseModel, Field
+
+
+class ImageFaceRecognitionStatus(str, Enum):
+    PENDING = "pending"
+    FAILED = "failed"
+    DONE = "done"
 
 
 class ImageMetadata(BaseModel):
@@ -14,6 +21,9 @@ class ImageMetadata(BaseModel):
     creationDate: Optional[str] = "Unknown"
     classification: str = "None"
     ron_in_image: bool = False
+    face_recognition_status: Optional[
+        ImageFaceRecognitionStatus
+    ] = ImageFaceRecognitionStatus.PENDING
 
 
 class GroupMetadata(BaseModel):
