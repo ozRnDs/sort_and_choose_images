@@ -1,9 +1,11 @@
 import numpy as np
 import redis
 
+from ..utils.model_pydantic import Face
+
 
 class RedisInterface:
-    def __init__(self, host="localhost", port=6379, db=0):
+    def __init__(self, host="redis-stack", port=6379, db=0):
         """
         Initialize the Redis client.
         """
@@ -45,17 +47,26 @@ class RedisInterface:
             if "Index already exists" not in str(e):
                 raise
 
-    def add_embedding(self, image_name: str, face_bbox: list, embedding: list):
+    def add_embedding(self, face: Face):
         """
-        Store an embedding with its associated image name and bounding box.
+        Store an embedding with its associated face_id.
         """
-        key = f"embedding:{image_name}:{','.join(map(str, face_bbox))}"
+        # Extract data from the Face object
+        face_id = face.face_id
+        embedding = face.embedding
+
+        # Construct a Redis key using the face_id
+        key = f"embedding:{face_id}"
+
+        # Construct the data to store in Redis
         data = {
-            "image_name": image_name,
-            "face_bbox": face_bbox,
+            "face_id": face_id,
             "embedding": embedding,
         }
+
+        # Store the data in Redis using JSON format
         self.client.json().set(key, "$", data)
+
         return key
 
     def process_redis_results(self, results):
@@ -66,26 +77,21 @@ class RedisInterface:
             results (list): Flat list of Redis search results.
 
         Returns:
-            list: List of structured results with image names, face bounding boxes, and scores.
+            list: List of structured results with face_id and scores.
         """
         num_results = results[0]  # First item is the number of results
         structured_results = []
 
         for i in range(1, len(results), 2):  # Iterate over doc_id and fields pairs
             # Parse document ID
-            doc_id = results[i]  # e.g., 'embedding:20230707_103839.jpg:1342.695...'
+            doc_id = results[i]  # e.g., 'embedding:face_id'
             doc_parts = doc_id.split(":")
 
-            # Ensure the doc_id has expected format
-            if len(doc_parts) < 2:
+            # Ensure the doc_id has the expected format
+            if len(doc_parts) != 2:
                 continue  # Skip if format is invalid
 
-            image_name = doc_parts[
-                1
-            ]  # Extract image name (e.g., 'embedding:20230707_103839.jpg')
-            face_bbox = [
-                int(float(item)) for item in doc_parts[2].split(",")
-            ]  # Bounding box coordinates
+            face_id = doc_parts[1]  # Extract face_id
 
             # Parse fields
             fields = results[i + 1]  # ['score', 'value']
@@ -95,11 +101,33 @@ class RedisInterface:
                     score = float(fields[j + 1])
 
             # Append structured result
-            structured_results.append(
-                {"image_name": image_name, "face_bbox": face_bbox, "score": score}
-            )
+            structured_results.append({"face_id": face_id, "score": score})
 
         return num_results, structured_results
+
+    def get_embedding(self, face_id: str):
+        """
+        Retrieve the embedding for a given face_id.
+
+        Args:
+            face_id (str): The unique identifier for the face.
+
+        Returns:
+            list: The embedding vector for the face, or None if not found.
+        """
+        key = f"embedding:{face_id}"
+
+        try:
+            # Retrieve the stored data for the given face_id
+            data = self.client.json().get(key)
+
+            # Check if the embedding exists
+            if data and "embedding" in data:
+                return data["embedding"]
+            else:
+                return None
+        except redis.exceptions.ResponseError as e:
+            raise ValueError(f"Failed to retrieve embedding for face_id {face_id}: {e}")
 
     def vector_search(self, query_embedding: list, k: int = 5):
         """
@@ -125,9 +153,8 @@ class RedisInterface:
                 "score",
                 "ASC",
                 "RETURN",
-                "3",
-                "image_name",
-                "face_bbox",
+                "2",
+                "face_id",
                 "score",
                 "DIALECT",
                 "2",

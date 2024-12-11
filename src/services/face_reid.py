@@ -1,11 +1,15 @@
 import asyncio
 import os
 import pickle
+import time
 from enum import Enum
+from typing import List
 
 import httpx
 from loguru import logger
 
+from ..utils.model_pydantic import ImageMetadata
+from .faces_db_service import Face, FaceDBService
 from .redis_service import (
     RedisInterface,  # Assuming this is the file where RedisInterface is defined
 )
@@ -15,6 +19,7 @@ class ProcessStatus(str, Enum):
     IDLE = "IDLE"
     WORKING = "WORKING"
     CRASHED = "CRASHED"
+    DONE = "DONE"
 
 
 class FaceRecognitionService:
@@ -49,6 +54,7 @@ class FaceRecognitionService:
         self,
         base_url: str,
         redis_interface: RedisInterface,
+        face_db_service: FaceDBService,
         progress_file="face_recognition_progress.pkl",
     ):
         """
@@ -59,12 +65,15 @@ class FaceRecognitionService:
             progress_file (str): Path to the pickle file for progress persistence.
         """
         self.redis_interface = redis_interface
+        self._face_db_service = face_db_service
+
         self.status = ProcessStatus.IDLE
         self.progress = 0
-        self.images = []
-        self.processed_images = []
-        self.failed_images = []
+        self.images: List[ImageMetadata] = []
+        self.processed_images_names = []
+        self.failed_images_names = []
         self._progress_file = progress_file
+        self._process_time = []
 
         self._httpx_client = httpx.AsyncClient()
         self._base_url = base_url
@@ -72,19 +81,25 @@ class FaceRecognitionService:
         self._processing_task = None
 
     async def load_progress(self):
+        logger.info("Start loading recognition progress data")
         if os.path.exists(self._progress_file):
             try:
                 with open(self._progress_file, "rb") as file:
                     progress_data = pickle.load(file)
-                    self.images = progress_data.get("images", [])
-                    self.processed_images = progress_data.get("processed_images", [])
+                    self.images = [
+                        ImageMetadata(**image)
+                        for image in progress_data.get("images", [])
+                    ]
+                    self.processed_images_names = progress_data.get(
+                        "processed_images", []
+                    )
                     self.progress = progress_data.get("progress", 0)
-                    self.failed_images = progress_data.get("failed_images", [])
-                    print("Progress loaded. Resuming from the last saved state.")
+                    self.failed_images_names = progress_data.get("failed_images", [])
+                    logger.info("Progress loaded. Resuming from the last saved state.")
             except (pickle.PickleError, EOFError) as e:
                 print(f"Failed to load progress file: {e}")
 
-    def load_images(self, images: list) -> int:
+    def load_images(self, images: List[ImageMetadata]) -> int:
         """
         Loads the images to be processed.
 
@@ -103,10 +118,22 @@ class FaceRecognitionService:
         Returns:
             tuple: (Status, progress percentage)
         """
+        images_in_queue = (
+            len(self.images)
+            - len(self.processed_images_names)
+            - len(self.failed_images_names)
+        )
+        time_left = (
+            images_in_queue * sum(self._process_time) / len(self._process_time)
+            if len(self._process_time) > 0
+            else -1
+        )
+
         return {
             "status": self.status,
             "progress": self.progress,
             "images": len(self.images),
+            "time_left_seconds": time_left,
         }
 
     def stop(self):
@@ -117,7 +144,12 @@ class FaceRecognitionService:
             self._processing_task = asyncio.create_task(self._astart())
             await asyncio.sleep(2)
 
-    async def _astart(self):
+    async def retry(self):
+        if not self._processing_task:
+            self._processing_task = asyncio.create_task(self._astart(retry=True))
+            await asyncio.sleep(2)
+
+    async def _astart(self, retry: bool = False):
         """
         Starts processing the images using the PixID API, resuming if progress was
         previously saved.
@@ -127,66 +159,89 @@ class FaceRecognitionService:
 
         self.status = ProcessStatus.WORKING
         try:
-            remaining_images = [
-                img
-                for img in self.images
-                if img not in self.processed_images and img not in self.failed_images
-            ]
+            if retry:
+                remaining_images: List[ImageMetadata] = [
+                    img
+                    for img in self.images
+                    if img.full_client_path not in self.processed_images_names
+                ]
+            else:
+                remaining_images: List[ImageMetadata] = [
+                    img
+                    for img in self.images
+                    if img.full_client_path not in self.processed_images_names
+                    and img.full_client_path not in self.failed_images_names
+                ]
             index = 0
             while index < len(remaining_images):
                 if self._terminate:
                     self.persist_progress()
                     break
+                start_time = time.perf_counter()
                 image = remaining_images[index]
 
                 for i in range(1):
                     try:
-                        face_vectors = await self.process_image(image)
+                        face_vectors = await self.process_image(image.full_client_path)
                         break
                     except RuntimeError as err:
                         logger.warning(
-                            f"Failed to process image: {image} Attempt {i+1}. {err}. Restarting the httpx client"
+                            f"Failed to process image: {image.full_client_path} Attempt {i+1}. {err}. Restarting the httpx client"
                         )
                         await self._httpx_client.aclose()
                         self._httpx_client = httpx.AsyncClient()
                 else:  # If all retries fail, execute this block
                     logger.error(
-                        f"Failed to process image {image} after {i+1} attempts. Skipping image"
+                        f"Failed to process image {image.full_client_path} after {i+1} attempts. Skipping image"
                     )
-                    self.failed_images.append(image)
+                    self.failed_images_names.append(image.full_client_path)
                     self.persist_progress()
                     index += 1
                     continue
 
                 for face in face_vectors["insights"]:
                     # Extract image details and embedding
-                    bbox = face["bbox"]
-                    embedding = face["embedding"]
-                    self.redis_interface.add_embedding(image, bbox, embedding)
+                    face_object = Face(
+                        image_full_path=image.full_client_path,
+                        bbox=[int(coordinate) for coordinate in face["bbox"]],
+                        embedding=face["embedding"],
+                        ron_in_image=image.ron_in_image,
+                    )
+                    self.redis_interface.add_embedding(face_object)
+                    self._face_db_service.add_face(face_object)
 
-                self.processed_images.append(image)
+                self.processed_images_names.append(image.full_client_path)
                 logger.info(
-                    f"Processed {image} and extracted {len(face_vectors['insights'])} faces"
+                    f"Processed {image.full_client_path} and extracted {len(face_vectors['insights'])} faces"
                 )
-
+                process_time = time.perf_counter() - start_time
+                self._update_process_time(process_time)
                 # Update progress
-                processed_count = len(self.processed_images)
+                processed_count = len(self.processed_images_names)
                 self.progress = int(processed_count / len(self.images) * 100)
                 self.persist_progress()
 
                 # Recompute remaining_images to reflect changes dynamically
                 remaining_images = [
-                    img for img in self.images if img not in self.processed_images
+                    img for img in self.images if img not in self.processed_images_names
                 ]
                 index += 1
 
-            self.status = ProcessStatus.IDLE
+            if len(remaining_images) == 0:
+                self.status = ProcessStatus.DONE
+            else:
+                self.status = ProcessStatus.IDLE
         except Exception as e:
             self.status = ProcessStatus.CRASHED
             self.persist_progress()
             print(f"Error: {e}")
         finally:
             self._processing_task = None
+
+    def _update_process_time(self, t: float):
+        if len(self._process_time) > 10:
+            self._process_time.pop(0)
+        self._process_time.append(t)
 
     async def process_image(self, image: str):
         """
@@ -254,10 +309,10 @@ class FaceRecognitionService:
         Persists the current progress to a pickle file.
         """
         progress_data = {
-            "images": self.images,
-            "processed_images": self.processed_images,
+            "images": [image.model_dump() for image in self.images],
+            "processed_images": self.processed_images_names,
             "progress": self.progress,
-            "failed_images": self.failed_images,
+            "failed_images": self.failed_images_names,
         }
         with open(self._progress_file, "wb") as file:
             pickle.dump(progress_data, file)

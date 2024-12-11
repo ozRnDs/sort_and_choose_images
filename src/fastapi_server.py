@@ -1,4 +1,5 @@
 import asyncio
+import io
 import os
 import pickle
 import re
@@ -9,21 +10,25 @@ from typing import Dict, List
 import exifread
 import uvicorn
 from fastapi import FastAPI, HTTPException, Query, exceptions, status
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from loguru import logger
+from PIL import Image
 from pydantic import BaseModel
 
 from .config import AppConfig
-from .models.images import ImageMetadata
 from .services.face_reid import FaceRecognitionService
+from .services.faces_db_service import FaceDBService
+from .services.groups_db import GROUPED_FILE, load_groups_from_file
 from .services.redis_service import RedisInterface
+from .utils.model_pydantic import Face, GroupMetadata, ImageMetadata
 
+app_config = AppConfig()
 app_config = AppConfig()
 app = FastAPI()
 
 PICKLE_FILE = "/data/image_metadata.pkl"
-GROUPED_FILE = "/data/grouped_metadata.pkl"
+FACE_DB = "/data/face_db.json"
 STATIC_FOLDER_LOCATION = "src/static"
 BASE_PATH = "/images"
 
@@ -31,27 +36,15 @@ redis_service = None
 face_recognition_service = None
 try:
     redis_service = RedisInterface()
+    face_db_service = FaceDBService(db_path=FACE_DB)
     face_recognition_service = FaceRecognitionService(
         base_url=app_config.BASE_URL,
         redis_interface=redis_service,
+        face_db_service=face_db_service,
         progress_file=f"{app_config.DATA_BASE_PATH}/face_recognition_progress.pkl",
     )
 except Exception as err:
     logger.error(f"Failed to initialize redis or face recognition service: {err}")
-
-
-# Define Pydantic model for grouped information
-class GroupMetadata(BaseModel):
-    group_name: str
-    group_thumbnail_url: str
-    list_of_images: List[Dict]
-    selection: str = (
-        "unprocessed"  # Can be "unprocessed", "interesting", or "not interesting"
-    )
-
-    @property
-    def image_count(self):
-        return len(self.list_of_images)
 
 
 # Define Pydantic model for paginated response
@@ -221,7 +214,7 @@ def sort_and_save_groups(grouped_metadata: List[Dict]):
 # Update the load_images function to use the new extract_image_metadata function
 @app.get("/load_images", tags=["Admin"])
 async def load_images():
-    images = []
+    images: List[ImageMetadata] = []
     for root, _, files in os.walk(BASE_PATH):
         for file in files:
             if file.lower().endswith(
@@ -272,13 +265,7 @@ async def get_groups_paginated(
     end_date: str = Query(None),
 ):
     # Load grouped metadata from pickle file
-    if not os.path.exists(GROUPED_FILE):
-        return JSONResponse(
-            content={"error": "No grouped metadata found"}, status_code=404
-        )
-
-    with open(GROUPED_FILE, "rb") as f:
-        grouped_metadata = pickle.load(f)
+    grouped_metadata = load_groups_from_file()
 
     # Filter groups by selection
     grouped_metadata = [
@@ -339,13 +326,7 @@ async def get_groups_paginated(
 @app.post("/toggle_group_selection", tags=["Groups"])
 async def toggle_group_selection(group_select: ToggleGroupSelection):
     # Load grouped metadata from pickle file
-    if not os.path.exists(GROUPED_FILE):
-        return JSONResponse(
-            content={"error": "No grouped metadata found"}, status_code=404
-        )
-
-    with open(GROUPED_FILE, "rb") as f:
-        grouped_metadata = pickle.load(f)
+    grouped_metadata = load_groups_from_file()
 
     # Update the selection for the specified group
     group_found = False
@@ -369,13 +350,7 @@ async def toggle_group_selection(group_select: ToggleGroupSelection):
 # Endpoint to update the image classification
 @app.post("/update_image_classification", tags=["Images"])
 async def update_image_classification(request: UpdateClassificationRequest):
-    # Load existing grouped metadata
-    if not os.path.exists(GROUPED_FILE):
-        raise HTTPException(status_code=404, detail="Grouped metadata not found")
-
-    with open(GROUPED_FILE, "rb") as f:
-        grouped_metadata = pickle.load(f)
-
+    grouped_metadata = load_groups_from_file()
     # Find the group and update the classification for the specific image
     group_found = False
     for group in grouped_metadata:
@@ -400,11 +375,7 @@ async def update_image_classification(request: UpdateClassificationRequest):
 @app.post("/update_ron_in_image", tags=["Images"])
 async def update_ron_in_image(request: UpdateRonInImageRequest):
     # Load existing grouped metadata
-    if not os.path.exists(GROUPED_FILE):
-        raise HTTPException(status_code=404, detail="Grouped metadata not found")
-
-    with open(GROUPED_FILE, "rb") as f:
-        grouped_metadata = pickle.load(f)
+    grouped_metadata = load_groups_from_file()
 
     # Find the group and update the 'Ron in image' flag for the specific image
     group_found = False
@@ -429,13 +400,7 @@ async def update_ron_in_image(request: UpdateRonInImageRequest):
 # Endpoint to get minimum and maximum dates in the groups
 @app.get("/get_min_max_dates", tags=["Groups"])
 async def get_min_max_dates():
-    if not os.path.exists(GROUPED_FILE):
-        return JSONResponse(
-            content={"error": "No grouped metadata found"}, status_code=404
-        )
-
-    with open(GROUPED_FILE, "rb") as f:
-        grouped_metadata = pickle.load(f)
+    grouped_metadata = load_groups_from_file()
 
     dates = []
     for group in grouped_metadata:
@@ -465,13 +430,11 @@ async def face_detect():
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Face Recognition Service is not available",
         )
+    groups_metadata = load_groups_from_file()
     images = []
-    for root, _, files in os.walk(BASE_PATH):
-        for file in files:
-            if file.lower().endswith(
-                (".png", ".jpg", ".jpeg", ".tiff", ".bmp", ".gif")
-            ):
-                images.append(os.path.join(root, file))
+    for group in groups_metadata:
+        group = GroupMetadata(**group)
+        images += group.list_of_images
 
     loaded_images = face_recognition_service.load_images(images)
     await face_recognition_service.start()
@@ -501,7 +464,7 @@ async def get_face_detection_status():
     return status_dict
 
 
-@app.get("/script/face_detection/restart", tags=["Face Recognition"])
+@app.post("/script/face_detection/restart", tags=["Face Recognition"])
 async def restart_face_recognition():
     if face_recognition_service is None:
         raise exceptions.HTTPException(
@@ -510,6 +473,143 @@ async def restart_face_recognition():
         )
     await face_recognition_service.start()
     return face_recognition_service.get_status()
+
+
+@app.post("/script/face_detection/retry", tags=["Face Recognition"])
+async def retry_face_recognition():
+    if face_recognition_service is None:
+        raise exceptions.HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Face Recognition Service is not available",
+        )
+    await face_recognition_service.retry()
+    return face_recognition_service.get_status()
+
+
+@app.post("/script/face_detection/stop", tags=["Face Recognition"])
+async def stop_face_recognition():
+    if face_recognition_service is None:
+        raise exceptions.HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Face Recognition Service is not available",
+        )
+    face_recognition_service.stop()
+    await asyncio.sleep(0.3)
+    return face_recognition_service.get_status()
+
+
+@app.get("/face/{face_id}/embedding", tags=["Face Recognition"])
+async def get_embedding_by_face_id(face_id: str) -> Face:
+    if redis_service is None:
+        raise exceptions.HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Redis DB is not available",
+        )
+    embedding = redis_service.get_embedding(face_id=face_id)
+    faces = face_db_service.get_faces(query={"face_id": face_id})
+    if faces:
+        result_face = faces[0]
+        result_face.embedding = embedding
+        return result_face
+    raise exceptions.HTTPException(
+        status=status.HTTP_404_NOT_FOUND, detail="Face was not found"
+    )
+
+
+@app.get("/face/{face_id}/image", tags=["Face Management"])
+async def get_image_for_face(face_id: str):
+    """
+    Get the cropped image for a face based on its bounding box (bbox).
+
+    Args:
+        face_id (str): The unique identifier for the face.
+
+    Returns:
+        Cropped image as a streaming response.
+    """
+    # Retrieve the face data
+    faces = face_db_service.get_faces(query={"face_id": face_id})
+    if not faces:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Face was not found",
+        )
+
+    result_face = faces[0]
+    image_path = result_face.image_full_path
+    bbox = result_face.bbox  # bbox is expected to be a list of [x, y, width, height]
+
+    # Load the image using Pillow
+    try:
+        image = Image.open(image_path)
+    except FileNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Image file not found: {image_path}",
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to load image: {e}",
+        )
+
+    # Crop the face using bbox
+    try:
+        x1, y1, x2, y2 = bbox
+        cropped_face = image.crop((x1, y1, x2, y2))  # Crop using x1, y1, x2, y2
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to crop image: {e}",
+        )
+
+    # Save the cropped face to an in-memory buffer
+    buffer = io.BytesIO()
+    cropped_face.save(buffer, format="JPEG")
+    buffer.seek(0)
+
+    # Return the cropped image as a streaming response
+    return StreamingResponse(buffer, media_type="image/jpeg")
+
+
+@app.get("/face/list/ron_in_image", tags=["Face Management"])
+async def get_paginated_faces_with_ron_in_image(
+    page: int = Query(1, ge=1, description="Page number"),
+    page_size: int = Query(10, ge=1, le=100, description="Number of items per page"),
+) -> List[Face]:
+    """
+    Paginated endpoint to get faces where 'ron_in_image' is True.
+
+    Args:
+        page (int): The page number to retrieve.
+        page_size (int): The number of items per page.
+
+    Returns:
+        List[Face]: Paginated list of faces matching the rule.
+    """
+    # Retrieve all faces matching the rule
+    faces = face_db_service.get_faces(query={"ron_in_image": True})
+
+    # Handle no matches found
+    if not faces:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No faces found with 'ron_in_image' set to True",
+        )
+
+    # Implement pagination
+    start_index = (page - 1) * page_size
+    end_index = start_index + page_size
+    paginated_faces = faces[start_index:end_index]
+
+    # Handle case where page is out of range
+    if not paginated_faces:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No faces found for page {page}",
+        )
+
+    return paginated_faces
 
 
 async def start_fastapi_server():

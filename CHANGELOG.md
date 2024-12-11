@@ -1,3 +1,47 @@
+## 0.7.1 (2024-12-11)
+
+### Fix
+
+- **RedisInterface**: Set the redis-stack host as default
+
+## 0.7.0 (2024-12-11)
+
+### Feat
+
+- **fastapi_server**: Add face-recognition retry entrypoint
+- **FaceRecognitionService**: Add retry logic for failed images
+
+## 0.6.0 (2024-12-10)
+
+### Feat
+
+- **ron.html**: Create new page to display all the face from images marked as ron
+- **groups.html,images.html**: Add ron.html to the navbar
+- **fastapi_server**: Add get_image_for_face and get_paginated_faces_with_ron_in_image entry points
+- **fastapi_server**: Add face_db_service integration. Add stop_face_recognition and get_embedding_by_face_id entry points
+- **FaceRecognitionService**: Add typings to the Image objects. Save faces to db and send face_id to redis with the embeddings. Add time logging and calculations
+- **RedisInterface**: Send to redis face_id and embeddings. Add get_embedding function (by face_id)
+- **FaceDBService**: Create basic DB Service to save, update and search faces in a TinyDB (json)
+
+### Refactor
+
+- **groups_db**: Create centralized function to get grouped_metadata from pickle file
+- **utils.model_pydantic**: Move ImageMetadata and GroupMetadata to utils.model_pydantic
+- **fastapi_server**: Create shared load groups from file function and use it in all entrypoints
+
+## 0.5.0 (2024-12-07)
+
+### Feat
+
+- **fastapi_server**: Integrate the redis interface and the face recognition service into the server
+- **FaceRecognitionService**: Create a service that extract faces from all the images (using API) and saves the vectors to redis
+- **RedisInterface**: Add an API to the redis server, create index for vector searches
+- **AppConfig**: Add a class that loads env files as configuration to the program
+
+### Fix
+
+- **fastapi_service**: Handle cases that Redis server is not available
+
 ## 0.4.0 (2024-11-27)
 
 ### Feat
