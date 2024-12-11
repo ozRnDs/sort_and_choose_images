@@ -7,6 +7,9 @@ from typing import List
 
 import httpx
 from loguru import logger
+from tinydb import Query, TinyDB
+from tinydb.middlewares import CachingMiddleware
+from tinydb.storages import JSONStorage
 
 from ..utils.model_pydantic import ImageMetadata
 from .faces_db_service import Face, FaceDBService
@@ -56,13 +59,15 @@ class FaceRecognitionService:
         redis_interface: RedisInterface,
         face_db_service: FaceDBService,
         progress_file="face_recognition_progress.pkl",
+        db_path="face_recognition_progress.json",
     ):
         """
         Initializes the FaceRecognitionService.
 
         Args:
             redis_interface (RedisInterface): An instance of RedisInterface for data storage.
-            progress_file (str): Path to the pickle file for progress persistence.
+            db_path (str): Path to the TinyDB file for progress persistence.
+            pickle_file (str): Path to the existing pickle file for migration.
         """
         self.redis_interface = redis_interface
         self._face_db_service = face_db_service
@@ -80,24 +85,56 @@ class FaceRecognitionService:
         self._terminate = False
         self._processing_task = None
 
+        # Initialize TinyDB
+        self._db = TinyDB(db_path, storage=CachingMiddleware(JSONStorage))
+        self._images_table = self._db.table("images")
+        self._progress_table = self._db.table("progress")
+
     async def load_progress(self):
         logger.info("Start loading recognition progress data")
-        if os.path.exists(self._progress_file):
-            try:
-                with open(self._progress_file, "rb") as file:
-                    progress_data = pickle.load(file)
-                    self.images = [
-                        ImageMetadata(**image)
-                        for image in progress_data.get("images", [])
-                    ]
-                    self.processed_images_names = progress_data.get(
-                        "processed_images", []
-                    )
-                    self.progress = progress_data.get("progress", 0)
-                    self.failed_images_names = progress_data.get("failed_images", [])
-                    logger.info("Progress loaded. Resuming from the last saved state.")
-            except (pickle.PickleError, EOFError) as e:
-                print(f"Failed to load progress file: {e}")
+        progress_data = self._progress_table.get(doc_id=1)
+        if progress_data:
+            self.images = [
+                ImageMetadata(**image) for image in progress_data.get("images", [])
+            ]
+            self.processed_images_names = progress_data.get("processed_images", [])
+            self.progress = progress_data.get("progress", 0)
+            self.failed_images_names = progress_data.get("failed_images", [])
+            logger.info("Progress loaded. Resuming from the last saved state.")
+
+    def migrate_pickle_to_tinydb(self):
+        """
+        Migrates data from the existing pickle file to the TinyDB database.
+        """
+        if not os.path.exists(self._progress_file):
+            logger.info("No pickle file found. Migration skipped.")
+            return
+
+        logger.info("Starting migration from pickle to TinyDB.")
+        try:
+            with open(self._progress_file, "rb") as file:
+                progress_data = pickle.load(file)
+
+            # Transform progress data for TinyDB
+            images = progress_data.get("images", [])
+            processed_images = progress_data.get("processed_images", [])
+            progress = progress_data.get("progress", 0)
+            failed_images = progress_data.get("failed_images", [])
+
+            # Save to TinyDB
+            self._progress_table.upsert(
+                {
+                    "images": images,
+                    "processed_images": processed_images,
+                    "progress": progress,
+                    "failed_images": failed_images,
+                },
+                doc_ids=[1],
+            )
+
+            logger.info("Migration completed successfully.")
+        except (pickle.PickleError, EOFError, FileNotFoundError) as e:
+            logger.error(f"Failed to migrate data from pickle: {e}")
 
     def load_images(self, images: List[ImageMetadata]) -> int:
         """
@@ -158,90 +195,108 @@ class FaceRecognitionService:
             raise RuntimeError("Service is already running.")
 
         self.status = ProcessStatus.WORKING
+
         try:
-            if retry:
-                remaining_images: List[ImageMetadata] = [
-                    img
-                    for img in self.images
-                    if img.full_client_path not in self.processed_images_names
-                ]
-            else:
-                remaining_images: List[ImageMetadata] = [
-                    img
-                    for img in self.images
-                    if img.full_client_path not in self.processed_images_names
-                    and img.full_client_path not in self.failed_images_names
-                ]
-            index = 0
-            while index < len(remaining_images):
+            remaining_images = self._get_remaining_images(retry)
+
+            for index, image in enumerate(remaining_images):
                 if self._terminate:
                     self.persist_progress()
                     break
-                start_time = time.perf_counter()
-                image = remaining_images[index]
 
-                for i in range(1):
-                    try:
-                        face_vectors = await self.process_image(image.full_client_path)
-                        break
-                    except RuntimeError as err:
-                        logger.warning(
-                            f"Failed to process image: {image.full_client_path} Attempt {i+1}. {err}. Restarting the httpx client"
-                        )
-                        await self._httpx_client.aclose()
-                        self._httpx_client = httpx.AsyncClient()
-                else:  # If all retries fail, execute this block
-                    logger.error(
-                        f"Failed to process image {image.full_client_path} after {i+1} attempts. Skipping image"
-                    )
-                    self.failed_images_names.append(image.full_client_path)
-                    self.persist_progress()
-                    index += 1
-                    continue
+                await self._process_image(image)
 
-                for face in face_vectors["insights"]:
-                    # Extract image details and embedding
-                    face_object = Face(
-                        image_full_path=image.full_client_path,
-                        bbox=[int(coordinate) for coordinate in face["bbox"]],
-                        embedding=face["embedding"],
-                        ron_in_image=image.ron_in_image,
-                    )
-                    self.redis_interface.add_embedding(face_object)
-                    self._face_db_service.add_face(face_object)
-
-                self.processed_images_names.append(image.full_client_path)
-                logger.info(
-                    f"Processed {image.full_client_path} and extracted {len(face_vectors['insights'])} faces"
-                )
-                process_time = time.perf_counter() - start_time
-                self._update_process_time(process_time)
-                # Update progress
-                processed_count = len(self.processed_images_names)
-                self.progress = int(processed_count / len(self.images) * 100)
+                # Update progress dynamically
+                self._update_progress()
                 self.persist_progress()
 
-                # Recompute remaining_images to reflect changes dynamically
-                remaining_images = [
-                    img for img in self.images if img not in self.processed_images_names
-                ]
-                index += 1
+            self.status = (
+                ProcessStatus.DONE
+                if not self._get_remaining_images(False)
+                else ProcessStatus.IDLE
+            )
 
-            if len(remaining_images) == 0:
-                self.status = ProcessStatus.DONE
-            else:
-                self.status = ProcessStatus.IDLE
         except Exception as e:
             self.status = ProcessStatus.CRASHED
             self.persist_progress()
-            print(f"Error: {e}")
+            logger.error(f"Error occurred during processing: {e}")
+
         finally:
             self._processing_task = None
+
+    def _get_remaining_images(self, retry: bool) -> List[ImageMetadata]:
+        """
+        Returns the list of images that still need to be processed.
+        """
+        return [
+            img
+            for img in self.images
+            if img.full_client_path not in self.processed_images_names
+            and (retry or img.full_client_path not in self.failed_images_names)
+        ]
+
+    async def _process_image(self, image: ImageMetadata):
+        """
+        Processes a single image and handles retries.
+        """
+        start_time = time.perf_counter()
+
+        try:
+            face_vectors = await self._retry_process_image(image)
+            self._store_face_vectors(image, face_vectors)
+            self.processed_images_names.append(image.full_client_path)
+            logger.info(f"Processed {image.full_client_path} successfully.")
+        except RuntimeError as err:
+            self.failed_images_names.append(image.full_client_path)
+            logger.error(f"Failed to process image {image.full_client_path}: {err}")
+        finally:
+            process_time = time.perf_counter() - start_time
+            self._update_process_time(process_time)
+
+    def _update_progress(self):
+        """
+        Updates the overall progress percentage.
+        """
+        processed_count = len(self.processed_images_names)
+        self.progress = int(processed_count / len(self.images) * 100)
+
+    def _store_face_vectors(self, image: ImageMetadata, face_vectors: dict):
+        """
+        Stores face vectors in Redis and the database.
+        """
+        for face in face_vectors["insights"]:
+            face_object = Face(
+                image_full_path=image.full_client_path,
+                bbox=[int(coordinate) for coordinate in face["bbox"]],
+                embedding=face["embedding"],
+                ron_in_image=image.ron_in_image,
+            )
+            self.redis_interface.add_embedding(face_object)
+            self._face_db_service.add_face(face_object)
 
     def _update_process_time(self, t: float):
         if len(self._process_time) > 10:
             self._process_time.pop(0)
         self._process_time.append(t)
+
+    async def _retry_process_image(
+        self, image: ImageMetadata, retries: int = 1
+    ) -> dict:
+        """
+        Retries processing an image for a specified number of attempts.
+        """
+        for attempt in range(1, retries + 1):
+            try:
+                return await self.process_image(image.full_client_path)
+            except RuntimeError as err:
+                logger.warning(
+                    f"Attempt {attempt} failed for {image.full_client_path}: {err}. Restarting HTTP client."
+                )
+                await self._httpx_client.aclose()
+                self._httpx_client = httpx.AsyncClient()
+        raise RuntimeError(
+            f"Failed to process {image.full_client_path} after {retries} retries."
+        )
 
     async def process_image(self, image: str):
         """
@@ -306,13 +361,22 @@ class FaceRecognitionService:
 
     def persist_progress(self):
         """
-        Persists the current progress to a pickle file.
+        Persists the current progress to TinyDB incrementally.
         """
-        progress_data = {
-            "images": [image.model_dump() for image in self.images],
-            "processed_images": self.processed_images_names,
-            "progress": self.progress,
-            "failed_images": self.failed_images_names,
-        }
-        with open(self._progress_file, "wb") as file:
-            pickle.dump(progress_data, file)
+        # Update or insert each image's progress individually
+        for image in self.images:
+            self._images_table.upsert(
+                image.model_dump(), Query().full_client_path == image.full_client_path
+            )
+
+        # Update the metadata like processed_images, progress, and failed_images
+        progress_query = Query()
+        self._progress_table.upsert(
+            {
+                "processed_images": self.processed_images_names,
+                "progress": self.progress,
+                "failed_images": self.failed_images_names,
+            },
+            progress_query.id
+            == "progress_metadata",  # Use a unique field to identify metadata
+        )
