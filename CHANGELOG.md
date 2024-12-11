@@ -1,3 +1,9 @@
+## 0.7.1 (2024-12-11)
+
+### Fix
+
+- **RedisInterface**: Set the redis-stack host as default
+
 ## 0.7.0 (2024-12-11)
 
 ### Feat
