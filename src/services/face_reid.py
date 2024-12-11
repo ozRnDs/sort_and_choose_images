@@ -143,7 +143,12 @@ class FaceRecognitionService:
             self._processing_task = asyncio.create_task(self._astart())
             await asyncio.sleep(2)
 
-    async def _astart(self):
+    async def retry(self):
+        if not self._processing_task:
+            self._processing_task = asyncio.create_task(self._astart(retry=True))
+            await asyncio.sleep(2)
+
+    async def _astart(self, retry: bool = False):
         """
         Starts processing the images using the PixID API, resuming if progress was
         previously saved.
@@ -153,12 +158,19 @@ class FaceRecognitionService:
 
         self.status = ProcessStatus.WORKING
         try:
-            remaining_images: List[ImageMetadata] = [
-                img
-                for img in self.images
-                if img.full_client_path not in self.processed_images_names
-                and img.full_client_path not in self.failed_images_names
-            ]
+            if retry:
+                remaining_images: List[ImageMetadata] = [
+                    img
+                    for img in self.images
+                    if img.full_client_path not in self.processed_images_names
+                ]
+            else:
+                remaining_images: List[ImageMetadata] = [
+                    img
+                    for img in self.images
+                    if img.full_client_path not in self.processed_images_names
+                    and img.full_client_path not in self.failed_images_names
+                ]
             index = 0
             while index < len(remaining_images):
                 if self._terminate:
