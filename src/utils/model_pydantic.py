@@ -46,6 +46,7 @@ class Face(BaseModel):
     embedding: List[float] = []
     ron_in_image: bool = False
     ron_in_face: Optional[bool] = Field(default=False)
+    hide_face: Optional[bool] = Field(default=False)
 
 
 # Define Pydantic model for paginated response
