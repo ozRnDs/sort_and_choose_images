@@ -179,8 +179,8 @@ class FaceRecognitionService:
             "progress": self.progress,
             "time_left_seconds": time_left,
             "images": self.get_images_count(),
-            "processed_images": len(self.processed_images_names),
-            "failed_images": len(self.failed_images_names),
+            "processed_images": len(set(self.processed_images_names)),
+            "failed_images": len(set(self.failed_images_names)),
         }
 
     def stop(self):
