@@ -13,13 +13,13 @@ class FaceProcessingRouter:
 
     def create_entry_points(self, app: FastAPI):
         @app.post(
-            "/scripts/face_detection/load_images", tags=["Admin", "Face Recognition"]
+            "/scripts/face_detection/load_images", tags=["Admin", "Face Detection"]
         )
         async def face_detect():
             if self._face_recognition_service is None:
                 raise exceptions.HTTPException(
                     status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                    detail="Face Recognition Service is not available",
+                    detail="Face Detection Service is not available",
                 )
             groups_metadata = load_groups_from_file()
             images = []
@@ -32,7 +32,7 @@ class FaceProcessingRouter:
             status_dict = self._face_recognition_service.get_status()
             return {"number_of_loaded_images": loaded_images, "status": status_dict}
 
-        @app.get("/scripts/face_detection/status", tags=["Face Recognition"])
+        @app.get("/scripts/face_detection/status", tags=["Face Detection"])
         def get_face_detection_status():
             if self._face_recognition_service is None:
                 raise exceptions.HTTPException(
@@ -43,7 +43,7 @@ class FaceProcessingRouter:
 
             return status_dict
 
-        @app.post("/script/face_detection/restart", tags=["Face Recognition"])
+        @app.post("/script/face_detection/restart", tags=["Face Detection"])
         async def restart_face_recognition():
             if self._face_recognition_service is None:
                 raise exceptions.HTTPException(
@@ -53,7 +53,7 @@ class FaceProcessingRouter:
             await self._face_recognition_service.start()
             return self._face_recognition_service.get_status()
 
-        @app.post("/script/face_detection/retry", tags=["Face Recognition"])
+        @app.post("/script/face_detection/retry", tags=["Face Detection"])
         async def retry_face_recognition():
             if self._face_recognition_service is None:
                 raise exceptions.HTTPException(
@@ -63,7 +63,7 @@ class FaceProcessingRouter:
             await self._face_recognition_service.retry()
             return self._face_recognition_service.get_status()
 
-        @app.post("/script/face_detection/stop", tags=["Face Recognition"])
+        @app.post("/script/face_detection/stop", tags=["Face Detection"])
         def stop_face_recognition():
             if self._face_recognition_service is None:
                 raise exceptions.HTTPException(
@@ -74,7 +74,7 @@ class FaceProcessingRouter:
             time.sleep(0.3)
             return self._face_recognition_service.get_status()
 
-        @app.post("/script/face_detection/migrate_db", tags=["Face Recognition"])
+        @app.post("/script/face_detection/migrate_db", tags=["Face Detection"])
         def migrate_db():
             if self._face_recognition_service is None:
                 raise exceptions.HTTPException(

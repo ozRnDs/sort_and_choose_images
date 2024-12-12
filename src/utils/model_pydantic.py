@@ -46,3 +46,28 @@ class Face(BaseModel):
     embedding: List[float] = []
     ron_in_image: bool = False
     ron_in_face: Optional[bool] = Field(default=False)
+
+
+# Define Pydantic model for paginated response
+class PaginatedGroupsResponse(BaseModel):
+    total_groups: int
+    current_page: int
+    page_size: int
+    groups: List[GroupMetadata]
+
+
+class ToggleGroupSelection(BaseModel):
+    group_name: str
+    selection: str
+
+
+class UpdateClassificationRequest(BaseModel):
+    group_name: str
+    image_name: str
+    classification: str
+
+
+class UpdateRonInImageRequest(BaseModel):
+    group_name: str
+    image_name: str
+    ron_in_image: bool
