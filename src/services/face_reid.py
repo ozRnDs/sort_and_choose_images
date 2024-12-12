@@ -8,6 +8,8 @@ from typing import List, Optional
 import httpx
 from loguru import logger
 from tinydb import Query, TinyDB
+from tinydb.middlewares import CachingMiddleware
+from tinydb.storages import JSONStorage
 
 from ..utils.model_pydantic import ImageFaceRecognitionStatus, ImageMetadata
 from .faces_db_service import Face, FaceDBService
@@ -84,7 +86,7 @@ class FaceRecognitionService:
         self._processing_task = None
 
         # Initialize TinyDB
-        self._db = TinyDB(db_path)
+        self._db = TinyDB(db_path, storage=CachingMiddleware(JSONStorage))
 
     async def load_progress(self):
         """
@@ -151,6 +153,7 @@ class FaceRecognitionService:
                 image.model_dump(), Query().full_client_path == image.full_client_path
             )
             loaded_images += 1
+        self._db.storage.flush()
         return loaded_images
 
     def get_status(self) -> dict:
@@ -239,6 +242,7 @@ class FaceRecognitionService:
             logger.error(f"Error occurred during processing: {e}")
 
         finally:
+            self._db.storage.flush()
             self._processing_task = None
 
     def _get_remaining_image(self, retry: bool) -> Optional[ImageMetadata]:
