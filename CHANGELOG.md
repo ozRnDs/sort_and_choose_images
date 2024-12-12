@@ -1,3 +1,9 @@
+## 0.8.1 (2024-12-12)
+
+### Perf
+
+- **FaceRecognitionService**: Add cache middleware to TinyDB
+
 ## 0.8.0 (2024-12-12)
 
 ### Feat
