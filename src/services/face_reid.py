@@ -205,11 +205,11 @@ class FaceRecognitionService:
             raise RuntimeError("Service is already running.")
 
         self.status = ProcessStatus.WORKING
-
         try:
             while True:
                 if self._terminate:
                     self.persist_progress()
+                    self._terminate = False
                     break
 
                 # Fetch one image to process
@@ -235,7 +235,6 @@ class FaceRecognitionService:
                 if not self._get_remaining_image(False)
                 else ProcessStatus.IDLE
             )
-
         except Exception as e:
             self.status = ProcessStatus.CRASHED
             self.persist_progress()
