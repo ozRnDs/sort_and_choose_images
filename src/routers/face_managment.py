@@ -138,8 +138,23 @@ class FaceManagmentRouter:
 
         @app.post("/face/{face_id}/ron_in_face", tags=["Face Management"])
         async def update_ron_in_face(face_id: str) -> bool:
-            marked_face = self._face_db_service.get_faces(query={"face_id": face_id})[0]
-            self._face_db_service.update_face(
-                face_id=face_id, updates={"ron_in_face": not marked_face.ron_in_face}
-            )
-            return not marked_face.ron_in_face
+            selected_face = self._face_db_service.get_faces(query={"face_id": face_id})[
+                0
+            ]
+            selected_face.ron_in_face = not selected_face.ron_in_face
+            self._face_db_service.add_face(selected_face, flush=True)
+            return selected_face.ron_in_face
+
+        @app.post("/face/{face_id}/hide", tags=["Face Management"])
+        async def update_hide_face(face_id: str) -> bool:
+            selected_face = self._face_db_service.get_faces(query={"face_id": face_id})[
+                0
+            ]
+            selected_face.hide_face = not selected_face.hide_face
+            self._face_db_service.add_face(selected_face, flush=True)
+            return selected_face.hide_face
+
+        @app.post("/scripts/face_db/migrate", tags=["Admin"])
+        async def migrate_face_db():
+            self._face_db_service.migrate_faces_table_to_documents()
+            return
