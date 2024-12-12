@@ -5,19 +5,52 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Faces with Ron</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
+
     <style>
         .card-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
             gap: 20px;
         }
+        .card {
+            position: relative;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            border-radius: 10px;
+            overflow: hidden;
+        }
         .card img {
             height: 200px;
             width: 100%;
-            object-fit: contain; /* Ensure the entire image is visible */
-            background-color: #f8f9fa; /* Optional: Add a background color to fill empty space */
-            border-radius: 5px;
+            object-fit: cover;
+            background-color: #f8f9fa;
+            cursor: pointer;
         }
+        .card img.interesting {
+            border: 3px solid green;
+        }
+        .visibility-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background-color: rgba(100, 149, 237, 0.8); /* Cornflower Blue */
+            color: white;
+            border: 2px solid #6495ED;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            cursor: pointer;
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+        .visibility-btn:hover {
+            background-color: #6495ED;
+            color: white;
+        }
+        
         .pagination-controls {
             display: flex;
             justify-content: center;
@@ -66,7 +99,9 @@
 
     <div class="container mt-4">
         <h1 class="text-center mb-4">Faces with Ron</h1>
-
+        <div class="mb-3 text-center">
+            <button class="btn btn-primary" id="filterButton">Toggle Hidden Images</button>
+        </div>
         <div id="cardGrid" class="card-grid"></div>
 
         <div class="pagination-controls">
@@ -82,14 +117,16 @@
         const prevPageButton = document.getElementById('prevPage');
         const nextPageButton = document.getElementById('nextPage');
         const pageInfo = document.getElementById('pageInfo');
+        const filterButton = document.getElementById('filterButton');
         const progressBar = document.getElementById('progressBar');
 
         let currentPage = 1;
+        let showHiddenImages = false;
         const pageSize = 9;
 
         async function fetchFaces(page) {
             try {
-                const response = await fetch(`/face/list/ron_in_image?page=${page}&page_size=${pageSize}`);
+                const response = await fetch(`/face/list/ron_in_image?page=${page}&page_size=${pageSize}&show_hidden_images=${showHiddenImages}`);
                 if (!response.ok) throw new Error('Failed to fetch faces');
 
                 const faces = await response.json();
@@ -109,18 +146,58 @@
             cardGrid.innerHTML = '';
             for (const face of faces) {
                 try {
+                    if (face.hide_face && !showHiddenImages) continue; // Skip hidden faces unless explicitly shown
+
                     const card = document.createElement('div');
                     card.className = 'card';
                     card.innerHTML = `
-                        <img src="/face/${face.face_id}/image" class="card-img-top" alt="Face Image">
+                        <img src="/face/${face.face_id}/image" class="card-img-top ${face.ron_in_face ? 'interesting' : ''}" alt="Face Image" data-face-id="${face.face_id}">
                         <div class="card-body">
                             <h5 class="card-title">Face ID: ${face.face_id}</h5>
                         </div>
+                        <button class="visibility-btn"><i class="fas ${face.hide_face ? 'fa-eye' : 'fa-eye-slash'}"></i></button>
                     `;
+
+                    const img = card.querySelector('img');
+                    img.addEventListener('click', () => toggleInteresting(face.face_id, img));
+
+                    const hideButton = card.querySelector('.visibility-btn');
+                    hideButton.addEventListener('click', () => hideFace(card, face));
+
                     cardGrid.appendChild(card);
                 } catch (imgError) {
                     console.error('Error processing face:', imgError);
                 }
+            }
+        }
+
+        async function toggleInteresting(faceId, imgElement) {
+            try {
+                const response = await fetch(`/face/${faceId}/ron_in_face`, {
+                    method: 'POST'
+                });
+                if (!response.ok) throw new Error('Failed to update status');
+
+                imgElement.classList.toggle('interesting');
+            } catch (error) {
+                console.error('Error updating interesting status:', error);
+            }
+        }
+
+        async function hideFace(cardElement, face) {
+            try {
+                const response = await fetch(`/face/${face.face_id}/hide`, {
+                    method: 'POST'
+                });
+                if (!response.ok) throw new Error('Failed to hide face');
+                if (!showHiddenImages){
+                    cardElement.remove();
+                }else{
+                    const hideButton = cardElement.querySelector('.visibility-btn');
+                    hideButton.innerHTML = `<i class="fas ${face.hide_face ? 'fa-eye-slash' : 'fa-eye'}"></i>`
+                }
+            } catch (error) {
+                console.error('Error hiding face:', error);
             }
         }
 
@@ -152,6 +229,12 @@
                 console.error('Error fetching recognition status:', error);
             }
         }
+
+        filterButton.addEventListener('click', () => {
+            showHiddenImages = !showHiddenImages;
+            filterButton.textContent = showHiddenImages ? 'Hide Hidden Images' : 'Show Hidden Images';
+            fetchFaces(currentPage);
+        });
 
         document.getElementById('restartButton').addEventListener('click', async () => {
             try {
