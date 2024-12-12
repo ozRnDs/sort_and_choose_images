@@ -21,11 +21,14 @@
             "request": "launch",
             "module": "src.fastapi_server",
             "console": "integratedTerminal",
-            "justMyCode": true
+            "justMyCode": true,
+            "env": {
+              "REDIS_URL": "localhost",
+            }
           },
         {
             "name": "Explore Pickle",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "program": "${workspaceFolder}/dev/explore_pickle_file.py",
             "console": "integratedTerminal",
