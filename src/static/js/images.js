@@ -93,7 +93,7 @@ function displayImages(images, groupName) {
     currentGroupImages = images; // Assign to global variable
     const grid = document.getElementById('grid');
     grid.innerHTML = '';
-
+    images.sort((image1, image2)=> image2.size - image1.size);
     images.forEach((image, index) => {
         const resolutionTag = getImageQualityTag(image.size); // Use file size from the server
         const div = document.createElement('div');
