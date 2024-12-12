@@ -33,8 +33,11 @@ BASE_PATH = "/images"
 redis_service = None
 face_recognition_service = None
 
+face_db_service = FaceDBService(db_path=FACE_DB)
 
-classify_router = classify_page_entrypoints.ClassifyRouter()
+classify_router = classify_page_entrypoints.ClassifyRouter(
+    face_db_service=face_db_service
+)
 classify_router.create_entry_points(app)
 
 groups_router = groups_page_entrypoints.GroupsRouter()
@@ -48,7 +51,6 @@ image_router = image_managment.ImagesProcessing(
 image_router.create_entry_points(app)
 try:
     redis_service = RedisInterface(host=app_config.REDIS_URL)
-    face_db_service = FaceDBService(db_path=FACE_DB)
     face_recognition_service = FaceRecognitionService(
         base_url=app_config.FACE_DETECTION_URL,
         redis_interface=redis_service,
