@@ -101,6 +101,7 @@ class FaceManagmentRouter:
             page_size: int = Query(
                 10, ge=1, le=100, description="Number of items per page"
             ),
+            show_hidden_images: bool = Query(False, description="Show hidden images"),
         ) -> List[Face]:
             """
             Paginated endpoint to get faces where 'ron_in_image' is True.
@@ -113,7 +114,10 @@ class FaceManagmentRouter:
                 List[Face]: Paginated list of faces matching the rule.
             """
             # Retrieve all faces matching the rule
-            faces = self._face_db_service.get_faces(query={"ron_in_image": True})
+            query = {"ron_in_image": True}
+            if not show_hidden_images:
+                query["hide_face"] = False
+            faces = self._face_db_service.get_faces(query=query)
 
             # Handle no matches found
             if not faces:
