@@ -1,3 +1,13 @@
+## 0.9.0 (2024-12-12)
+
+### Feat
+
+- **images.js**: Sort images based on resolution
+
+### Fix
+
+- **images**: Fix the sidebar and adjust the rest of the items accordinally
+
 ## 0.8.1 (2024-12-12)
 
 ### Perf
