@@ -14,11 +14,11 @@ class FaceManagmentRouter:
         self,
         face_recognition_service: FaceRecognitionService,
         redis_service: RedisInterface,
-        face_db_Service: FaceDBService,
+        face_db_service: FaceDBService,
     ):
         self._face_recognition_service = face_recognition_service
         self._redis_service = redis_service
-        self._face_db_Service = face_db_Service
+        self._face_db_service = face_db_service
 
     def create_entry_points(self, app: FastAPI):
         @app.get("/face/{face_id}/embedding", tags=["Face Recognition"])
@@ -29,7 +29,7 @@ class FaceManagmentRouter:
                     detail="Redis DB is not available",
                 )
             embedding = self._redis_service.get_embedding(face_id=face_id)
-            faces = self._face_db_Service.get_faces(query={"face_id": face_id})
+            faces = self._face_db_service.get_faces(query={"face_id": face_id})
             if faces:
                 result_face = faces[0]
                 result_face.embedding = embedding
@@ -50,7 +50,7 @@ class FaceManagmentRouter:
                 Cropped image as a streaming response.
             """
             # Retrieve the face data
-            faces = self._face_db_Service.get_faces(query={"face_id": face_id})
+            faces = self._face_db_service.get_faces(query={"face_id": face_id})
             if not faces:
                 raise exceptions.HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
@@ -113,7 +113,7 @@ class FaceManagmentRouter:
                 List[Face]: Paginated list of faces matching the rule.
             """
             # Retrieve all faces matching the rule
-            faces = self._face_db_Service.get_faces(query={"ron_in_image": True})
+            faces = self._face_db_service.get_faces(query={"ron_in_image": True})
 
             # Handle no matches found
             if not faces:
@@ -135,3 +135,11 @@ class FaceManagmentRouter:
                 )
 
             return paginated_faces
+
+        @app.post("/face/{face_id}/ron_in_face", tags=["Face Management"])
+        async def update_ron_in_face(face_id: str) -> bool:
+            marked_face = self._face_db_service.get_faces(query={"face_id": face_id})[0]
+            self._face_db_service.update_face(
+                face_id=face_id, updates={"ron_in_face": not marked_face.ron_in_face}
+            )
+            return not marked_face.ron_in_face
