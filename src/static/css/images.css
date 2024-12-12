@@ -6,6 +6,9 @@ body {
     margin-top: 20px;
 }
 .sidebar {
+    position: fixed;
+    top: 50px;
+    width: max(min(25vw,300px),250px);
     height: 100vh;
     overflow-y: auto;
     background-color: #e9ecef;
@@ -23,6 +26,12 @@ body {
 }
 .sidebar .group-item:hover {
     background-color: #d1e7dd;
+}
+.main-content {
+    top: 50;
+    margin-top: 50px;
+    margin-left: max(min(25vw,300px),250px);
+    margin-right: 20px;
 }
 .grid-container {
     display: grid;
@@ -141,7 +150,10 @@ body {
     box-shadow: 0 6px 12px rgba(0, 0, 0, 0.1);
 }
 .navbar {
+    position: fixed;
     margin-bottom: 20px;
+    width: 100%;
+    z-index: 1000;
 }
 #loading {
     display: none;
