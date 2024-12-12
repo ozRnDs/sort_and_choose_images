@@ -3,6 +3,7 @@ import io
 import os
 import pickle
 import re
+import time
 from collections import defaultdict
 from datetime import datetime
 from typing import Dict, List
@@ -35,13 +36,14 @@ BASE_PATH = "/images"
 redis_service = None
 face_recognition_service = None
 try:
-    redis_service = RedisInterface()
+    redis_service = RedisInterface(host=app_config.REDIS_URL)
     face_db_service = FaceDBService(db_path=FACE_DB)
     face_recognition_service = FaceRecognitionService(
-        base_url=app_config.BASE_URL,
+        base_url=app_config.FACE_DETECTION_URL,
         redis_interface=redis_service,
         face_db_service=face_db_service,
         progress_file=f"{app_config.DATA_BASE_PATH}/face_recognition_progress.pkl",
+        db_path=f"{app_config.DATA_BASE_PATH}/face_recognition_progress.json",
     )
 except Exception as err:
     logger.error(f"Failed to initialize redis or face recognition service: {err}")
@@ -453,7 +455,7 @@ async def face_detect():
 
 
 @app.get("/scripts/face_detection/status", tags=["Face Recognition"])
-async def get_face_detection_status():
+def get_face_detection_status():
     if face_recognition_service is None:
         raise exceptions.HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -487,19 +489,31 @@ async def retry_face_recognition():
 
 
 @app.post("/script/face_detection/stop", tags=["Face Recognition"])
-async def stop_face_recognition():
+def stop_face_recognition():
     if face_recognition_service is None:
         raise exceptions.HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Face Recognition Service is not available",
         )
     face_recognition_service.stop()
-    await asyncio.sleep(0.3)
+    time.sleep(0.3)
+    return face_recognition_service.get_status()
+
+
+@app.post("/script/face_detection/migrate_db", tags=["Face Recognition"])
+def migrate_db():
+    if face_recognition_service is None:
+        raise exceptions.HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Face Recognition Service is not available",
+        )
+    face_recognition_service.migrate_pickle_to_tinydb()
+    time.sleep(0.3)
     return face_recognition_service.get_status()
 
 
 @app.get("/face/{face_id}/embedding", tags=["Face Recognition"])
-async def get_embedding_by_face_id(face_id: str) -> Face:
+def get_embedding_by_face_id(face_id: str) -> Face:
     if redis_service is None:
         raise exceptions.HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,

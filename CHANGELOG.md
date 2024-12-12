@@ -1,3 +1,24 @@
+## 0.8.1 (2024-12-12)
+
+### Perf
+
+- **FaceRecognitionService**: Add cache middleware to TinyDB
+
+## 0.8.0 (2024-12-12)
+
+### Feat
+
+- **FaceRecognitionService**: Improve the service data handling with tinydb
+- **fastapi_server**: Add migrate_db entry point
+- **ImageMetadata**: Add face_recognition_status field to easily get next image to process
+- **fastapi_server**: Pass new envs to the FaceRecognitionService and RedisInterface
+- **AppConfig**: Add FACE_DETECTION_URL, REDIS_URL, REDIS_PORT variables
+
+### Refactor
+
+- **FaceRecognitionService**: Adjust the TinyDB to work with documents instead of tables. Add migration code from progress.pkl to TinyDB
+- **FaceRecognitionService**: Use TinyDB to persist progress information, to improve performances
+
 ## 0.7.1 (2024-12-11)
 
 ### Fix
