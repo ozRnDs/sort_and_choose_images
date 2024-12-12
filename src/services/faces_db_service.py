@@ -37,7 +37,7 @@ class FaceDBService:
             db_path (str): Path to the TinyDB file.
         """
         self.db_path = db_path
-        self.db = TinyDB(self.db_path, CachingMiddleware(JSONStorage))
+        self.db = TinyDB(self.db_path, storage=CachingMiddleware(JSONStorage))
         self.faces_table = self.db.table("faces")
 
     def add_face(self, face: Face, flush: bool = False) -> int:
