@@ -19,3 +19,15 @@ def load_groups_from_file() -> List[Dict]:
         grouped_metadata = pickle.load(f)
 
     return grouped_metadata
+
+
+def sort_and_save_groups(grouped_metadata: List[Dict]):
+    """
+    Sort the groups by date and save them to the grouped metadata file.
+
+    Args:
+        grouped_metadata (List[Dict]): The list of grouped metadata to save.
+    """
+    grouped_metadata.sort(key=lambda x: x.get("group_name", "Unknown"))
+    with open(GROUPED_FILE, "wb") as f:
+        pickle.dump(grouped_metadata, f)

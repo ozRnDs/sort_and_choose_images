@@ -1,6 +1,8 @@
 from typing import Any, Dict, List
 
 from tinydb import Query, TinyDB
+from tinydb.middlewares import CachingMiddleware
+from tinydb.storages import JSONStorage
 
 from ..utils.model_pydantic import Face
 
@@ -35,10 +37,10 @@ class FaceDBService:
             db_path (str): Path to the TinyDB file.
         """
         self.db_path = db_path
-        self.db = TinyDB(self.db_path)
+        self.db = TinyDB(self.db_path, storage=CachingMiddleware(JSONStorage))
         self.faces_table = self.db.table("faces")
 
-    def add_face(self, face: Face) -> int:
+    def add_face(self, face: Face, flush: bool = False) -> int:
         """
         Adds a new face document to the database.
 
@@ -49,7 +51,10 @@ class FaceDBService:
             int: The ID of the inserted document.
         """
         db_face = face.model_copy(update={"embedding": []})
-        return self.faces_table.insert(db_face.model_dump())
+        response = self.db.upsert(db_face.model_dump(), Query().face_id == face.face_id)
+        if flush:
+            self.db.storage.flush()
+        return response
 
     def get_faces(self, query: Dict[str, Any] = None) -> List[Face]:
         """
@@ -64,25 +69,12 @@ class FaceDBService:
         """
         if query:
             conditions = [Query()[key] == value for key, value in query.items()]
-            results = self.faces_table.search(conditions[0])
+            results = self.db.search(conditions[0])
             for cond in conditions[1:]:
                 results = [doc for doc in results if cond(doc)]
             return [Face(**doc) for doc in results]
         else:
             return [Face(**doc) for doc in self.faces_table.all()]
-
-    def update_face(self, face_id: str, updates: Dict[str, Any]) -> bool:
-        """
-        Updates a face document in the database.
-
-        Args:
-            face_id (str): The face_id of the document to update.
-            updates (dict): The fields to update with their new values.
-
-        Returns:
-            bool: True if the document was updated, False otherwise.
-        """
-        return self.faces_table.update(updates, Query().face_id == face_id)
 
     def remove_face(self, face_id: str) -> bool:
         """
@@ -94,7 +86,7 @@ class FaceDBService:
         Returns:
             bool: True if the document was removed, False otherwise.
         """
-        return bool(self.faces_table.remove(Query().face_id == face_id))
+        return bool(self.db.remove(Query().face_id == face_id))
 
     def clear_all_faces(self):
         """
@@ -110,6 +102,34 @@ class FaceDBService:
             int: The number of documents in the database.
         """
         return len(self.faces_table)
+
+    def migrate_faces_table_to_documents(self):
+        """
+        Migrates data from the 'faces' table to the root document storage in TinyDB.
+
+        Args:
+            db_path (str): Path to the TinyDB file.
+
+        Returns:
+            None
+        """
+        # Retrieve all documents from the 'faces' table
+        faces = self.faces_table.all()
+
+        if not faces:
+            print("No data found in the 'faces' table to migrate.")
+            return
+
+        # Insert documents into the root-level document storage
+        for face in faces:
+            self.db.insert(face)
+
+        # Optionally, remove the 'faces' table after migration
+        self.db.drop_table("faces")
+        self.db.storage.flush()
+        print(
+            f"Migrated {len(faces)} documents from 'faces' table to root-level storage."
+        )
 
 
 # Example Usage
