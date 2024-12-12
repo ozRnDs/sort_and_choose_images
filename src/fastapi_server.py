@@ -3,7 +3,6 @@ import io
 import os
 import pickle
 import re
-import time
 from collections import defaultdict
 from datetime import datetime
 from typing import Dict, List
@@ -16,6 +15,8 @@ from fastapi.staticfiles import StaticFiles
 from loguru import logger
 from PIL import Image
 from pydantic import BaseModel
+
+from src.routers import face_processing
 
 from .config import AppConfig
 from .services.face_reid import FaceRecognitionService
@@ -45,6 +46,12 @@ try:
         progress_file=f"{app_config.DATA_BASE_PATH}/face_recognition_progress.pkl",
         db_path=f"{app_config.DATA_BASE_PATH}/face_recognition_progress.json",
     )
+
+    face_recognition_router = face_processing.FaceProcessingRouter(
+        face_recognition_service=face_recognition_service
+    )
+    face_recognition_router.create_entry_points(app)
+
 except Exception as err:
     logger.error(f"Failed to initialize redis or face recognition service: {err}")
 
@@ -423,93 +430,6 @@ async def get_min_max_dates():
     return JSONResponse(
         content={"min_date": min_date, "max_date": max_date}, status_code=200
     )
-
-
-@app.post("/scripts/face_detection/load_images", tags=["Admin", "Face Recognition"])
-async def face_detect():
-    if face_recognition_service is None:
-        raise exceptions.HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Face Recognition Service is not available",
-        )
-    groups_metadata = load_groups_from_file()
-    images = []
-    for group in groups_metadata:
-        group = GroupMetadata(**group)
-        images += group.list_of_images
-
-    loaded_images = face_recognition_service.load_images(images)
-    await face_recognition_service.start()
-    status_dict = face_recognition_service.get_status()
-    # async with httpx.AsyncClient() as client:
-    #     httpx_tasks = []
-    #     done_tasks = []
-    #     for image in images:
-    #         if len(httpx_tasks)>10:
-    #             done,pending = await asyncio.wait(httpx_tasks,return_when=asyncio.FIRST_COMPLETED)
-    #             done_tasks += list(done)
-    #             httpx_tasks=list(pending)
-    #         with open(image,"rb") as file:
-    #             httpx_tasks.append(asyncio.create_task(client.post(FACE_DETECTION_URL, files=("images",(os.path.basename(image),file,"image/jpeg")))))
-    return {"number_of_loaded_images": loaded_images, "status": status_dict}
-
-
-@app.get("/scripts/face_detection/status", tags=["Face Recognition"])
-def get_face_detection_status():
-    if face_recognition_service is None:
-        raise exceptions.HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Face Recognition Service is not available",
-        )
-    status_dict = face_recognition_service.get_status()
-
-    return status_dict
-
-
-@app.post("/script/face_detection/restart", tags=["Face Recognition"])
-async def restart_face_recognition():
-    if face_recognition_service is None:
-        raise exceptions.HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Face Recognition Service is not available",
-        )
-    await face_recognition_service.start()
-    return face_recognition_service.get_status()
-
-
-@app.post("/script/face_detection/retry", tags=["Face Recognition"])
-async def retry_face_recognition():
-    if face_recognition_service is None:
-        raise exceptions.HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Face Recognition Service is not available",
-        )
-    await face_recognition_service.retry()
-    return face_recognition_service.get_status()
-
-
-@app.post("/script/face_detection/stop", tags=["Face Recognition"])
-def stop_face_recognition():
-    if face_recognition_service is None:
-        raise exceptions.HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Face Recognition Service is not available",
-        )
-    face_recognition_service.stop()
-    time.sleep(0.3)
-    return face_recognition_service.get_status()
-
-
-@app.post("/script/face_detection/migrate_db", tags=["Face Recognition"])
-def migrate_db():
-    if face_recognition_service is None:
-        raise exceptions.HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Face Recognition Service is not available",
-        )
-    face_recognition_service.migrate_pickle_to_tinydb()
-    time.sleep(0.3)
-    return face_recognition_service.get_status()
 
 
 @app.get("/face/{face_id}/embedding", tags=["Face Recognition"])
