@@ -9,6 +9,7 @@ from loguru import logger
 
 from src.routers import (
     classify_page_entrypoints,
+    face_managment,
     face_processing,
     groups_page_entrypoints,
     image_managment,
@@ -60,6 +61,13 @@ try:
         face_recognition_service=face_recognition_service
     )
     face_recognition_router.create_entry_points(app)
+
+    face_managment_router = face_managment.FaceManagmentRouter(
+        face_recognition_service=face_recognition_service,
+        redis_service=redis_service,
+        face_db_service=face_db_service,
+    )
+    face_managment_router.create_entry_points(app)
 
 except Exception as err:
     logger.error(f"Failed to initialize redis or face recognition service: {err}")
