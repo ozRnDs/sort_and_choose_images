@@ -16,6 +16,7 @@ from .faces_db_service import Face, FaceDBService
 from .redis_service import (
     RedisInterface,  # Assuming this is the file where RedisInterface is defined
 )
+from .redis_service import VectorIndexType
 
 
 class ProcessStatus(str, Enum):
@@ -342,7 +343,9 @@ class FaceRecognitionService:
                 embedding=face["embedding"],
                 ron_in_image=image.ron_in_image,
             )
-            self.redis_interface.add_embedding(face_object)
+            self.redis_interface.add_embedding(
+                index_type=VectorIndexType.EMBEDDING, face=face_object
+            )
             self._face_db_service.add_face(face_object)
 
     def _update_process_time(self, t: float):
