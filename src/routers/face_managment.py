@@ -17,6 +17,16 @@ class FacePageResponse(BaseModel):
     number_of_total_faces: int
 
 
+class SimilarImagesResponse(BaseModel):
+    full_client_path: str
+    similarity: float
+
+
+class SimilarFacesResponse(BaseModel):
+    face_id: str
+    similarity: float
+
+
 class FaceManagmentRouter:
     def __init__(
         self,
@@ -186,3 +196,25 @@ class FaceManagmentRouter:
         async def migrate_face_db():
             self._face_db_service.migrate_faces_table_to_documents()
             return
+
+        @app.get("/face/get_similar_faces", tags=["Face Similarity"])
+        async def get_similar_faces(
+            threshold: float = 0.8,
+        ) -> List[SimilarFacesResponse]:
+            target_faces = self._face_db_service.get_faces({"ron_in_face": True})
+
+            response_list = []
+
+            for face in target_faces:
+                search_embeddings = self._redis_service.get_embedding(face.face_id)
+                if not search_embeddings:
+                    continue
+                results = self._redis_service.vector_search(search_embeddings, k=1000)
+
+                for result in results:
+                    if 0.01 < result["score"] < threshold:
+                        similar_face = SimilarFacesResponse(
+                            similarity=1 - result["score"], face_id=result["face_id"]
+                        )
+                        response_list.append(similar_face)
+            return response_list
