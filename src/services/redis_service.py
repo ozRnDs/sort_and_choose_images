@@ -1,7 +1,14 @@
+from enum import Enum
+
 import numpy as np
 import redis
 
 from ..utils.model_pydantic import Face
+
+
+class VectorIndexType(str, Enum):
+    EMBEDDING = "embedding"
+    TARGET_OBJECT = "target_object"
 
 
 class RedisInterface:
@@ -15,6 +22,7 @@ class RedisInterface:
 
         # Create vector similarity search index
         self.create_vector_index()
+        self.create_target_object_index()
 
     def create_vector_index(self):
         """
@@ -47,7 +55,42 @@ class RedisInterface:
             if "Index already exists" not in str(e):
                 raise
 
-    def add_embedding(self, face: Face):
+    def create_target_object_index(self):
+        """
+        Create an index for target objects using Redis's module.
+        """
+        try:
+            self.client.execute_command(
+                "FT.CREATE",
+                "target_object_index",  # Index name
+                "ON",
+                "JSON",  # Use JSON data type
+                "PREFIX",
+                "1",
+                "target_object:",  # Key prefix for the target objects
+                "SCHEMA",
+                "$.target_id",  # Path to the target object ID in JSON
+                "AS",
+                "target_id",  # Alias for the field
+                "TAG",  # Use TAG for categorical values
+                "$.embedding",
+                "AS",
+                "embedding",
+                "VECTOR",
+                "FLAT",
+                "6",  # Vector type and arguments count
+                "TYPE",
+                "FLOAT32",  # Data type of the vector
+                "DIM",
+                "512",  # Dimension of the vector
+                "DISTANCE_METRIC",
+                "COSINE",  # Similarity metric
+            )
+        except redis.exceptions.ResponseError as e:
+            if "Index already exists" not in str(e):
+                raise
+
+    def add_embedding(self, index_type: VectorIndexType, face: Face):
         """
         Store an embedding with its associated face_id.
         """
@@ -56,7 +99,7 @@ class RedisInterface:
         embedding = face.embedding
 
         # Construct a Redis key using the face_id
-        key = f"embedding:{face_id}"
+        key = f"{index_type.value}:{face_id}"
 
         # Construct the data to store in Redis
         data = {
@@ -152,6 +195,9 @@ class RedisInterface:
                 "SORTBY",
                 "score",
                 "ASC",
+                "LIMIT",  # Add the LIMIT clause
+                "0",  # Offset
+                str(k),  # Number of results to return
                 "RETURN",
                 "2",
                 "face_id",
