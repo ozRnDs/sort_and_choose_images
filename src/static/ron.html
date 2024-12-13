@@ -20,9 +20,9 @@
             overflow: hidden;
         }
         .card img {
-            height: 200px;
-            width: 100%;
-            object-fit: cover;
+            height: auto; /* Adjusts height to maintain aspect ratio */
+            max-height: 200px; /* Ensures the image doesn't exceed container height */
+            object-fit: contain;
             background-color: #f8f9fa;
             cursor: pointer;
         }
@@ -122,20 +122,31 @@
 
         let currentPage = 1;
         let showHiddenImages = false;
-        const pageSize = 9;
+        const pageSize = 12;
 
         async function fetchFaces(page) {
             try {
                 const response = await fetch(`/face/list/ron_in_image?page=${page}&page_size=${pageSize}&show_hidden_images=${showHiddenImages}`);
                 if (!response.ok) throw new Error('Failed to fetch faces');
 
-                const faces = await response.json();
-                if (!Array.isArray(faces)) {
-                    throw new Error('Invalid response format: expected an array of faces');
+                const data = await response.json();
+
+                // Validate response structure
+                if (
+                    !data ||
+                    typeof data.page_index !== 'number' ||
+                    typeof data.faces_in_page !== 'number' ||
+                    !Array.isArray(data.faces) ||
+                    typeof data.number_of_total_faces !== 'number'
+                ) {
+                    throw new Error('Invalid response format');
                 }
 
-                displayFaces(faces);
-                updatePagination(faces.length, page); // Assuming length is total for simplicity
+                // Display fetched faces
+                displayFaces(data.faces);
+
+                // Update pagination with correct total count
+                updatePagination(data.number_of_total_faces, data.page_index);
             } catch (error) {
                 console.error('Error fetching faces:', error);
                 cardGrid.innerHTML = '<p class="text-center text-danger">Unable to load faces. Please try again later.</p>';
