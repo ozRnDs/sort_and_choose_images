@@ -1,3 +1,9 @@
+## 0.9.1 (2024-12-13)
+
+### Fix
+
+- **FaceRecognitionService**: Set self._terminate=False when the command was processed by the _astart loop (#16)
+
 ## 0.9.0 (2024-12-12)
 
 ### Feat
