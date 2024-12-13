@@ -1,12 +1,20 @@
 import io
 from typing import List
 
+import cv2
 from fastapi import FastAPI, Query, exceptions, responses, status
-from PIL import Image
+from pydantic import BaseModel
 
 from src.services.face_reid import FaceDBService, FaceRecognitionService
 from src.services.redis_service import RedisInterface
 from src.utils.model_pydantic import Face
+
+
+class FacePageResponse(BaseModel):
+    page_index: int
+    faces_in_page: int
+    faces: List[Face]
+    number_of_total_faces: int
 
 
 class FaceManagmentRouter:
@@ -59,13 +67,13 @@ class FaceManagmentRouter:
 
             result_face = faces[0]
             image_path = result_face.image_full_path
-            bbox = (
-                result_face.bbox
-            )  # bbox is expected to be a list of [x, y, width, height]
+            bbox = result_face.bbox  # bbox is expected to be a list of [x1, y1, x2, y2]
 
-            # Load the image using Pillow
+            # Load the image using OpenCV
             try:
-                image = Image.open(image_path)
+                image = cv2.imread(image_path)
+                if image is None:
+                    raise FileNotFoundError(f"Image file not found: {image_path}")
             except FileNotFoundError:
                 raise exceptions.HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
@@ -79,21 +87,32 @@ class FaceManagmentRouter:
 
             # Crop the face using bbox
             try:
-                x1, y1, x2, y2 = bbox
-                cropped_face = image.crop((x1, y1, x2, y2))  # Crop using x1, y1, x2, y2
+                x1, y1, x2, y2 = bbox  # Assuming bbox is in the format [x1, y1, x2, y2]
+                cropped_face = image[y1:y2, x1:x2]  # Crop the image using NumPy slicing
+                if cropped_face.size == 0:
+                    raise ValueError("Cropping resulted in an empty image")
             except Exception as e:
                 raise exceptions.HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                     detail=f"Failed to crop image: {e}",
                 )
 
-            # Save the cropped face to an in-memory buffer
-            buffer = io.BytesIO()
-            cropped_face.save(buffer, format="JPEG")
-            buffer.seek(0)
+            # Encode the cropped image to JPEG
+            try:
+                success, buffer = cv2.imencode(".jpg", cropped_face)
+                if not success:
+                    raise ValueError("Failed to encode the cropped image")
+                cropped_image_bytes = io.BytesIO(buffer.tobytes())
+            except Exception as e:
+                raise exceptions.HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"Failed to encode image: {e}",
+                )
 
             # Return the cropped image as a streaming response
-            return responses.StreamingResponse(buffer, media_type="image/jpeg")
+            return responses.StreamingResponse(
+                cropped_image_bytes, media_type="image/jpeg"
+            )
 
         @app.get("/face/list/ron_in_image", tags=["Face Management"])
         async def get_paginated_faces_with_ron_in_image(
@@ -102,7 +121,7 @@ class FaceManagmentRouter:
                 10, ge=1, le=100, description="Number of items per page"
             ),
             show_hidden_images: bool = Query(False, description="Show hidden images"),
-        ) -> List[Face]:
+        ) -> FacePageResponse:
             """
             Paginated endpoint to get faces where 'ron_in_image' is True.
 
@@ -111,7 +130,7 @@ class FaceManagmentRouter:
                 page_size (int): The number of items per page.
 
             Returns:
-                List[Face]: Paginated list of faces matching the rule.
+                FacePageResponse: Paginated list of faces matching the rule.
             """
             # Retrieve all faces matching the rule
             query = {"ron_in_image": True}
@@ -125,7 +144,7 @@ class FaceManagmentRouter:
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail="No faces found with 'ron_in_image' set to True",
                 )
-
+            number_of_faces = len(faces)
             # Implement pagination
             start_index = (page - 1) * page_size
             end_index = start_index + page_size
@@ -138,7 +157,12 @@ class FaceManagmentRouter:
                     detail=f"No faces found for page {page}",
                 )
 
-            return paginated_faces
+            return FacePageResponse(
+                page_index=page,
+                faces_in_page=page_size,
+                faces=paginated_faces,
+                number_of_total_faces=number_of_faces,
+            )
 
         @app.post("/face/{face_id}/ron_in_face", tags=["Face Management"])
         async def update_ron_in_face(face_id: str) -> bool:
