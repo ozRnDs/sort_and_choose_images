@@ -8,7 +8,7 @@ ENV PYTHONUNBUFFERED=1 \
     POETRY_NO_INTERACTION=1 \
     VENV_PATH="/app/.venv"
 
-RUN apt update && apt install git-all -y
+RUN apt update && apt install git-all python3-opencv -y
 RUN pip install poetry
 
 # Copy necessary files
