@@ -1,5 +1,6 @@
 from typing import Any, Dict, List
 
+from loguru import logger
 from tinydb import Query, TinyDB
 from tinydb.middlewares import CachingMiddleware
 from tinydb.storages import JSONStorage
@@ -121,8 +122,10 @@ class FaceDBService:
             return
 
         # Insert documents into the root-level document storage
-        for face in faces:
+        for index, face in enumerate(faces):
             self.db.insert(face)
+            if index % 50:
+                logger.info(f"Migration Progress {index/len(faces)*100}%")
 
         # Optionally, remove the 'faces' table after migration
         self.db.drop_table("faces")
