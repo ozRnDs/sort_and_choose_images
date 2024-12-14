@@ -1,3 +1,4 @@
+from enum import Enum
 from typing import List
 
 from fastapi import FastAPI, exceptions, status
@@ -11,6 +12,11 @@ from src.services.images_db_service import ImageDBService
 from src.utils.model_pydantic import GroupMetadata, GroupMetadata_V1, ImageMetadata
 
 
+class DBType(str, Enum):
+    PICKLE = "pickle"
+    TINYDB = "tinydb"
+
+
 class DbRouter:
     def __init__(
         self,
@@ -18,6 +24,8 @@ class DbRouter:
         group_db_path: str,
         image_db_path_pickle: str,
         groups_db_path_pickle: str,
+        image_db_service: ImageDBService,
+        group_db_service: GroupDBService,
     ):
         """
         Initialize the DbRouter with paths to the image and groups databases.
@@ -26,6 +34,8 @@ class DbRouter:
         self._groups_db_path = group_db_path
         self._image_db_path_pickle = image_db_path_pickle
         self._groups_db_path_pickle = groups_db_path_pickle
+        self._image_db_service = image_db_service
+        self._groups_db_service = group_db_service
 
     def create_entry_points(self, app: FastAPI):
         """
@@ -38,12 +48,16 @@ class DbRouter:
             response_class=FileResponse,
             tags=["DB Managment"],
         )
-        def get_images_db():
+        def get_images_db(db_type: DBType = DBType.TINYDB):
             """
             Endpoint to download the images database file.
             """
+            if db_type == DBType.PICKLE:
+                filename = self._image_db_path_pickle
+            if db_type == DBType.TINYDB:
+                filename = self._image_db_path
             return FileResponse(
-                path=self._image_db_path_pickle,
+                path=filename,
                 filename="images.db",
                 media_type="application/octet-stream",
             )
@@ -54,12 +68,16 @@ class DbRouter:
             response_class=FileResponse,
             tags=["DB Managment"],
         )
-        def get_groups_db():
+        def get_groups_db(db_type: DBType = DBType.TINYDB):
             """
             Endpoint to download the groups database file.
             """
+            if db_type == DBType.PICKLE:
+                filename = self._groups_db_path_pickle
+            if db_type == DBType.TINYDB:
+                filename = self._groups_db_path
             return FileResponse(
-                path=self._groups_db_path_pickle,
+                path=filename,
                 filename="groups.db",
                 media_type="application/octet-stream",
             )
@@ -84,8 +102,8 @@ class DbRouter:
                 ]
 
                 # Initialize new DB services
-                group_service = GroupDBService(db_path=self._groups_db_path)
-                image_service = ImageDBService(db_path=self._image_db_path)
+                group_service = self._groups_db_service
+                image_service = self._image_db_service
 
                 # Migrate data
                 for old_group in tqdm(data, desc="Migrating groups"):
@@ -120,6 +138,8 @@ class DbRouter:
                     )
                     group_service.add_group(group_metadata)
 
+                image_service.save_db()
+                group_service.save_db()
                 return {"message": "Migration completed successfully."}
             except FileNotFoundError as e:
                 raise exceptions.HTTPException(
