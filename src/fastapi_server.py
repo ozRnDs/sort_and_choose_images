@@ -61,7 +61,7 @@ classify_router = classify_page_entrypoints.ClassifyRouterV2(
 classify_router.create_entry_points(app)
 
 groups_router = groups_page_entrypoints.GroupsRouterV2(
-    group_db_service=group_db_service
+    group_db_service=group_db_service, image_db_service=image_db_service
 )
 groups_router.create_entry_points(app)
 
