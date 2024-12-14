@@ -1,3 +1,9 @@
+## 0.10.0 (2024-12-14)
+
+### Feat
+
+- **DbRouter**: Create entry points to download dbs for group and images
+
 ## 0.9.1 (2024-12-13)
 
 ### Fix
