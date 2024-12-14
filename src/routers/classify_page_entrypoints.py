@@ -90,8 +90,12 @@ class ClassifyRouterV1:
 
 class ClassifyRouterV2(ClassifyRouterV1):
     def __init__(
-        self, image_db_service: ImageDBService, group_db_service: GroupDBService
+        self,
+        image_db_service: ImageDBService,
+        group_db_service: GroupDBService,
+        face_db_service: FaceDBService,
     ):
+        super().__init__(face_db_service=face_db_service)
         self._image_db_service = image_db_service
         self._group_db_service = group_db_service
 
