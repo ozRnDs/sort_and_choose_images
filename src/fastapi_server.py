@@ -65,10 +65,10 @@ groups_router = groups_page_entrypoints.GroupsRouterV2(
 )
 groups_router.create_entry_points(app)
 
-image_router = image_managment.ImagesProcessing_V1(
+image_router = image_managment.ImagesProcessingV2(
     images_base_path=BASE_PATH,
-    pickle_file_path=PICKLE_FILE,
-    group_file_path=GROUPED_FILE,
+    group_db_service=group_db_service,
+    image_db_service=image_db_service,
 )
 image_router.create_entry_points(app)
 try:

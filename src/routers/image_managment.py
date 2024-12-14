@@ -8,12 +8,15 @@ from typing import Dict, List
 import exifread
 from fastapi import FastAPI, exceptions, status
 from fastapi.responses import JSONResponse
+from tqdm import tqdm
 
 from src.services.groups_db import sort_and_save_groups
+from src.services.groups_db_service import GroupDBService
+from src.services.images_db_service import ImageDBService
 from src.utils.model_pydantic import GroupMetadata_V1, ImageMetadata
 
 
-class ImagesProcessing_V1:
+class ImagesProcessingV1:
     def __init__(
         self, images_base_path: str, pickle_file_path: str, group_file_path: str
     ):
@@ -175,3 +178,149 @@ class ImagesProcessing_V1:
 
         # Save updated grouped metadata to a pickle file
         sort_and_save_groups(grouped_metadata)
+
+
+class ImagesProcessingV2:
+    def __init__(
+        self,
+        images_base_path: str,
+        group_db_service: GroupDBService,
+        image_db_service: ImageDBService,
+    ):
+        self._image_base_path = images_base_path
+        self._group_db_service = group_db_service
+        self._image_db_service = image_db_service
+
+    def create_entry_points(self, app: FastAPI):
+        @app.get("/v2/load_images", tags=["Admin"])
+        async def load_images():
+            # Get the total number of files to process for progress tracking
+            total_files = sum(
+                len(files)
+                for _, _, files in os.walk(self._image_base_path)
+                if any(
+                    file.lower().endswith(
+                        (".png", ".jpg", ".jpeg", ".tiff", ".bmp", ".gif")
+                    )
+                    for file in files
+                )
+            )
+
+            # Use tqdm for progress tracking
+            with tqdm(
+                total=total_files, desc="Processing Images", unit="image"
+            ) as pbar:
+                # Walk through the base path to find images
+                for root, _, files in os.walk(self._image_base_path):
+                    for file in files:
+                        if file.lower().endswith(
+                            (".png", ".jpg", ".jpeg", ".tiff", ".bmp", ".gif")
+                        ):
+                            image_metadata = self.extract_image_metadata(file, root)
+
+                            # Check if the image is already in the database
+                            existing_images = self._image_db_service.get_images(
+                                query={
+                                    "full_client_path": image_metadata.full_client_path
+                                }
+                            )
+
+                            if existing_images:
+                                print(
+                                    f"Image {image_metadata.name} already exists in the database."
+                                )
+                                pbar.update(1)  # Update progress even for skipped files
+                                continue  # Skip processing if image exists
+
+                            # Determine the group for the image
+                            group_name = self._determine_group(image_metadata)
+
+                            # Add image to group
+                            self._group_db_service.add_image_to_group(
+                                group_name, image_metadata.full_client_path
+                            )
+
+                            # Add image to the database
+                            self._image_db_service.add_image(image_metadata)
+
+                            # Update progress bar
+                            pbar.update(1)
+
+            # Save databases after processing
+            self._group_db_service.save_db()
+            self._image_db_service.save_db()
+
+            return JSONResponse(
+                content={"message": "Images processed successfully"},
+                status_code=200,
+            )
+
+    def extract_image_metadata(self, file: str, root: str) -> ImageMetadata:
+        full_path = os.path.join(root, file)
+        size = os.path.getsize(full_path)
+        type_ = file.split(".")[-1].upper()
+        creation_date = "Unknown"
+        camera = "Unknown"
+
+        # Extract EXIF metadata if available
+        with open(full_path, "rb") as image_file:
+            tags = exifread.process_file(
+                image_file, stop_tag="DateTimeOriginal", details=False
+            )
+            if "EXIF DateTimeOriginal" in tags:
+                creation_date = tags["EXIF DateTimeOriginal"].values
+            if "Image Model" in tags:
+                camera = tags["Image Model"].values
+
+        # Use last modified date if EXIF metadata is unavailable
+        if creation_date == "Unknown":
+            modified_timestamp = os.path.getmtime(full_path)
+            creation_date = datetime.fromtimestamp(modified_timestamp).strftime(
+                "%Y:%m:%d %H:%M:%S"
+            )
+
+        # Check for WhatsApp-style image naming
+        if camera == "Unknown":
+            whatsapp_pattern = r"IMG-\d{8}-WA\d+"
+            if re.match(whatsapp_pattern, file):
+                camera = "whatsapp"
+
+        return ImageMetadata(
+            name=file,
+            full_client_path=full_path.replace(self._image_base_path, "/images"),
+            size=size,
+            type=type_,
+            camera=camera,
+            creationDate=creation_date,
+        )
+
+    def _determine_group(self, image_metadata: ImageMetadata) -> str:
+        """
+        Determines the group for an image based on its creation date.
+
+        Args:
+            image_metadata (ImageMetadata): Metadata of the image.
+
+        Returns:
+            str: The name of the group the image belongs to.
+        """
+        try:
+            date_str = image_metadata.creationDate.split(" ")[0]
+            date_obj = datetime.strptime(date_str, "%Y:%m:%d")
+            group_name = date_obj.strftime("%Y-%m-%d")
+        except ValueError:
+            group_name = "Unknown"
+
+        # Check if the group already exists in the database
+        existing_group = self._group_db_service.get_group(group_name)
+        if not existing_group:
+            # Create a new group if it doesn't exist
+            group_metadata = {
+                "group_name": group_name,
+                "group_thumbnail_url": image_metadata.full_client_path,
+                "list_of_images": [],
+                "selection": "unprocessed",
+            }
+            self._group_db_service.add_group(group_metadata, flush=True)
+
+        return group_name
