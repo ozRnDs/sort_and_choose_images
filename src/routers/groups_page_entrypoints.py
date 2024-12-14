@@ -307,3 +307,46 @@ class GroupsRouterV2(GroupsRouterV1):
                 return JSONResponse(
                     content={"error": "An unexpected error occurred."}, status_code=500
                 )
+
+        @app.get("/check_group_has_classification", tags=["Groups"])
+        async def check_group_has_classification(group_name: str = Query(...)):
+            """
+            Check if a group has any classified images.
+            """
+            try:
+                # Fetch the group metadata by name
+                group = self._group_db_service.get_group(group_name)
+
+                # If the group has no images, return False
+                if not group.list_of_images:
+                    return JSONResponse(
+                        content={"has_classification": False}, status_code=200
+                    )
+
+                # Fetch detailed metadata for all images in the group
+                images = self._image_db_service.get_images(
+                    query={"full_client_path": {"$in": group.list_of_images}}
+                )
+
+                # Check if any image has a classification other than "None"
+                has_classification = any(
+                    image.classification != "None" for image in images
+                ) or any(image.ron_in_image for image in images)
+
+                # Return the result
+                return JSONResponse(
+                    content={"has_classification": has_classification}, status_code=200
+                )
+
+            except FileNotFoundError:
+                return JSONResponse(
+                    content={"error": f"Group '{group_name}' not found."},
+                    status_code=404,
+                )
+            except Exception as err:
+                logger.exception(
+                    f"Error checking classification for group '{group_name}': {err}"
+                )
+                return JSONResponse(
+                    content={"error": "An unexpected error occurred."}, status_code=500
+                )
