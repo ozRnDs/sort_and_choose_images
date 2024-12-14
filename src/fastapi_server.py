@@ -20,6 +20,8 @@ from .config import AppConfig
 from .services.face_reid import FaceRecognitionService
 from .services.faces_db_service import FaceDBService
 from .services.groups_db import GROUPED_FILE
+from .services.groups_db_service import GroupDBService
+from .services.images_db_service import ImageDBService
 from .services.redis_service import RedisInterface
 
 app_config = AppConfig()
@@ -38,23 +40,29 @@ IMAGE_DB = "/data/image_db.json"
 redis_service = None
 face_recognition_service = None
 
+group_db_service = GroupDBService(db_path=GROUP_DB)
+image_db_service = ImageDBService(db_path=IMAGE_DB)
+face_db_service = FaceDBService(db_path=FACE_DB)
+
 db_router = db_router.DbRouter(
     image_db_path=IMAGE_DB,
     group_db_path=GROUP_DB,
     image_db_path_pickle=PICKLE_FILE,
     groups_db_path_pickle=GROUPED_FILE,
+    image_db_service=image_db_service,
+    group_db_service=group_db_service,
 )
 db_router.create_entry_points(app)
 
-face_db_service = FaceDBService(db_path=FACE_DB)
-
-classify_router = classify_page_entrypoints.ClassifyRouter(
-    face_db_service=face_db_service
+classify_router = classify_page_entrypoints.ClassifyRouterV2(
+    group_db_service=group_db_service, image_db_service=image_db_service
 )
 
 classify_router.create_entry_points(app)
 
-groups_router = groups_page_entrypoints.GroupsRouterV1()
+groups_router = groups_page_entrypoints.GroupsRouterV2(
+    group_db_service=group_db_service
+)
 groups_router.create_entry_points(app)
 
 image_router = image_managment.ImagesProcessing_V1(
