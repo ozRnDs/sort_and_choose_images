@@ -373,15 +373,15 @@
                 if (firstImage.width > firstImage.height) {
                     imagesToDisplay = `
                         <div class="double-image-wrapper row-layout">
-                            <img src="${firstImage.full_client_path}" alt="${group.group_name}_first" class="img-fluid">
-                            <img src="${lastImage.full_client_path}" alt="${group.group_name}_last" class="img-fluid">
+                            <img src="${firstImage}" alt="${group.group_name}_first" class="img-fluid">
+                            <img src="${lastImage}" alt="${group.group_name}_last" class="img-fluid">
                         </div>
                     `;
                 } else {
                     imagesToDisplay = `
                         <div class="double-image-wrapper column-layout">
-                            <img src="${firstImage.full_client_path}" alt="${group.group_name}_first" class="img-fluid">
-                            <img src="${lastImage.full_client_path}" alt="${group.group_name}_last" class="img-fluid">
+                            <img src="${firstImage}" alt="${group.group_name}_first" class="img-fluid">
+                            <img src="${lastImage}" alt="${group.group_name}_last" class="img-fluid">
                         </div>
                     `;
                 }
@@ -390,15 +390,15 @@
                 imagesToDisplay = `
                     <div class="row">
                         <div class="col-6">
-                            <img src="${group.list_of_images[0].full_client_path}" alt="${group.group_name}_first" class="img-fluid">
+                            <img src="${group.list_of_images[0]}" alt="${group.group_name}_first" class="img-fluid">
                         </div>
                         <div class="col-6">
-                            <img src="${group.list_of_images[middleIndex].full_client_path}" alt="${group.group_name}_middle" class="img-fluid">
+                            <img src="${group.list_of_images[middleIndex]}" alt="${group.group_name}_middle" class="img-fluid">
                         </div>
                     </div>
                     <div class="row mt-2">
                         <div class="col-12">
-                            <img src="${group.list_of_images[totalImages - 1].full_client_path}" alt="${group.group_name}_last" class="img-fluid">
+                            <img src="${group.list_of_images[totalImages - 1]}" alt="${group.group_name}_last" class="img-fluid">
                         </div>
                     </div>
                 `;
@@ -410,18 +410,18 @@
                 imagesToDisplay = `
                     <div class="row">
                         <div class="col-6">
-                            <img src="${group.list_of_images[firstIndex].full_client_path}" alt="${group.group_name}_first" class="img-fluid">
+                            <img src="${group.list_of_images[firstIndex]}" alt="${group.group_name}_first" class="img-fluid">
                         </div>
                         <div class="col-6">
-                            <img src="${group.list_of_images[secondIndex].full_client_path}" alt="${group.group_name}_second" class="img-fluid">
+                            <img src="${group.list_of_images[secondIndex]}" alt="${group.group_name}_second" class="img-fluid">
                         </div>
                     </div>
                     <div class="row mt-2">
                         <div class="col-6">
-                            <img src="${group.list_of_images[thirdIndex].full_client_path}" alt="${group.group_name}_third" class="img-fluid">
+                            <img src="${group.list_of_images[thirdIndex]}" alt="${group.group_name}_third" class="img-fluid">
                         </div>
                         <div class="col-6">
-                            <img src="${group.list_of_images[lastIndex].full_client_path}" alt="${group.group_name}_last" class="img-fluid">
+                            <img src="${group.list_of_images[lastIndex]}" alt="${group.group_name}_last" class="img-fluid">
                         </div>
                     </div>
                 `;
@@ -469,7 +469,7 @@
 
         async function sendGroupSelectionToServer(groupName, selection) {
             try {
-                const response = await fetch('/toggle_group_selection', {
+                const response = await fetch('/v2/toggle_group_selection', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
