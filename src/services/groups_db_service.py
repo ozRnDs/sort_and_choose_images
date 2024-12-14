@@ -1,3 +1,31 @@
+# # GroupDBService Overview
+
+# Manage group-related data in a TinyDB instance.
+
+# ## Methods
+
+# - **`__init__(db_path: str = "groups_db.json")`**: Initialize with a database path.
+# - **`add_group(group: GroupMetadata, flush: bool = False) -> int`**: Add or update a group.
+# - **`get_groups(query: Optional[Dict[str, Any]] = None) -> List[GroupMetadata]`**: Retrieve all or filtered groups.
+# - **`get_group(group_name: str) -> GroupMetadata`**: Fetch a group by name, raise `FileNotFoundError` if not found.
+# - **`remove_group(group_name: str) -> bool`**: Delete a group by name.
+# - **`count_groups() -> int`**: Count total groups.
+# - **`add_image_to_group(group_name: str, image_path: str, flush: bool = False) -> bool`**: Add an image path to a group.
+# - **`remove_image_from_group(group_name: str, image_path: str, flush: bool = False) -> bool`**: Remove an image path from a group.
+
+# ## `GroupMetadata` Structure
+
+# Represents the data structure for a group.
+
+# - **`group_name: str`**: Name of the group.
+# - **`group_thumbnail_url: str`**: URL of the group's thumbnail.
+# - **`list_of_images: List[str]`**: List of image paths in the group.
+# - **`selection: str`**: Group's status, can be:
+#   - `"unprocessed"`
+#   - `"interesting"`
+#   - `"not interesting"`.
+
+
 from typing import Any, Dict, List, Optional
 
 from loguru import logger
