@@ -29,6 +29,19 @@ class ImageMetadata(BaseModel):
 class GroupMetadata(BaseModel):
     group_name: str
     group_thumbnail_url: str
+    list_of_images: List[str]
+    selection: str = (
+        "unprocessed"  # Can be "unprocessed", "interesting", or "not interesting"
+    )
+
+    @property
+    def image_count(self):
+        return len(self.list_of_images)
+
+
+class GroupMetadata_V1(BaseModel):
+    group_name: str
+    group_thumbnail_url: str
     list_of_images: List[ImageMetadata]
     selection: str = (
         "unprocessed"  # Can be "unprocessed", "interesting", or "not interesting"
