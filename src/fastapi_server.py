@@ -9,6 +9,7 @@ from loguru import logger
 
 from src.routers import (
     classify_page_entrypoints,
+    db_router,
     face_managment,
     face_processing,
     groups_page_entrypoints,
@@ -22,7 +23,6 @@ from .services.groups_db import GROUPED_FILE
 from .services.redis_service import RedisInterface
 
 app_config = AppConfig()
-app_config = AppConfig()
 app = FastAPI()
 
 PICKLE_FILE = "/data/image_metadata.pkl"
@@ -33,11 +33,15 @@ BASE_PATH = "/images"
 redis_service = None
 face_recognition_service = None
 
+db_router = db_router.DbRouter(image_db_path=PICKLE_FILE, groups_db_path=GROUPED_FILE)
+db_router.create_entry_points(app)
+
 face_db_service = FaceDBService(db_path=FACE_DB)
 
 classify_router = classify_page_entrypoints.ClassifyRouter(
     face_db_service=face_db_service
 )
+
 classify_router.create_entry_points(app)
 
 groups_router = groups_page_entrypoints.GroupsRouter()
