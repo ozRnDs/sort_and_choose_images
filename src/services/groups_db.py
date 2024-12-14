@@ -7,15 +7,15 @@ from fastapi import exceptions, status
 GROUPED_FILE = "/data/grouped_metadata.pkl"
 
 
-def load_groups_from_pickle_file() -> List[Dict]:
+def load_groups_from_pickle_file(db_location: str = GROUPED_FILE) -> List[Dict]:
     # Load existing grouped metadata
-    grouped_file_path = Path(GROUPED_FILE)
+    grouped_file_path = Path(db_location)
     if not grouped_file_path.exists():
         raise exceptions.HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Grouped metadata not found"
         )
 
-    with open(GROUPED_FILE, "rb") as f:
+    with open(db_location, "rb") as f:
         grouped_metadata = pickle.load(f)
 
     return grouped_metadata
