@@ -7,7 +7,7 @@ from fastapi import exceptions, status
 GROUPED_FILE = "/data/grouped_metadata.pkl"
 
 
-def load_groups_from_file() -> List[Dict]:
+def load_groups_from_pickle_file() -> List[Dict]:
     # Load existing grouped metadata
     grouped_file_path = Path(GROUPED_FILE)
     if not grouped_file_path.exists():

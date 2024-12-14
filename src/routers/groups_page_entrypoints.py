@@ -4,7 +4,7 @@ from typing import List
 from fastapi import FastAPI, Query
 from fastapi.responses import JSONResponse
 
-from src.services.groups_db import load_groups_from_file, sort_and_save_groups
+from src.services.groups_db import load_groups_from_pickle_file, sort_and_save_groups
 from src.utils.model_pydantic import (
     GroupMetadata,
     PaginatedGroupsResponse,
@@ -31,7 +31,7 @@ class GroupsRouter:
             end_date: str = Query(None),
         ):
             # Load grouped metadata from pickle file
-            grouped_metadata = load_groups_from_file()
+            grouped_metadata = load_groups_from_pickle_file()
 
             # Filter groups by selection
             grouped_metadata = [
@@ -94,7 +94,7 @@ class GroupsRouter:
         @app.post("/toggle_group_selection", tags=["Groups"])
         async def toggle_group_selection(group_select: ToggleGroupSelection):
             # Load grouped metadata from pickle file
-            grouped_metadata = load_groups_from_file()
+            grouped_metadata = load_groups_from_pickle_file()
 
             # Update the selection for the specified group
             group_found = False
@@ -120,7 +120,7 @@ class GroupsRouter:
         @app.get("/get_min_max_dates", tags=["Groups"])
         async def get_min_max_dates():
             # Endpoint to get minimum and maximum dates in the groups
-            grouped_metadata = load_groups_from_file()
+            grouped_metadata = load_groups_from_pickle_file()
 
             dates = []
             for group in grouped_metadata:

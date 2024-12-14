@@ -3,7 +3,7 @@ from typing import List
 from fastapi import FastAPI, exceptions
 
 from src.services.faces_db_service import FaceDBService
-from src.services.groups_db import load_groups_from_file, sort_and_save_groups
+from src.services.groups_db import load_groups_from_pickle_file, sort_and_save_groups
 from src.utils.model_pydantic import (
     Face,
     UpdateClassificationRequest,
@@ -19,7 +19,7 @@ class ClassifyRouter:
         # Endpoint to update the image classification
         @app.post("/update_image_classification", tags=["Images"])
         async def update_image_classification(request: UpdateClassificationRequest):
-            grouped_metadata = load_groups_from_file()
+            grouped_metadata = load_groups_from_pickle_file()
             # Find the group and update the classification for the specific image
             group_found = False
             for group in grouped_metadata:
@@ -45,7 +45,7 @@ class ClassifyRouter:
         @app.post("/update_ron_in_image", tags=["Images"])
         async def update_ron_in_image(request: UpdateRonInImageRequest):
             # Load existing grouped metadata
-            grouped_metadata = load_groups_from_file()
+            grouped_metadata = load_groups_from_pickle_file()
 
             # Find the group and update the 'Ron in image' flag for the specific image
             group_found = False
