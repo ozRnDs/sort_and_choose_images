@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Dict, List
 
 import exifread
-from fastapi import FastAPI
+from fastapi import FastAPI, exceptions, status
 from fastapi.responses import JSONResponse
 
 from src.services.groups_db import sort_and_save_groups
@@ -25,6 +25,9 @@ class ImagesProcessing_V1:
         # Update the load_images function to use the new extract_image_metadata function
         @app.get("/load_images", tags=["Admin"])
         async def load_images():
+            raise exceptions.HTTPException(
+                status=status.HTTP_410_GONE, details="This function is disabled"
+            )
             images: List[ImageMetadata] = []
             for root, _, files in os.walk(self._image_base_path):
                 for file in files:

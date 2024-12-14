@@ -1,6 +1,6 @@
 from typing import List
 
-from fastapi import FastAPI, exceptions
+from fastapi import FastAPI, exceptions, status
 
 from src.services.faces_db_service import FaceDBService
 from src.services.groups_db import load_groups_from_pickle_file, sort_and_save_groups
@@ -19,6 +19,9 @@ class ClassifyRouter:
         # Endpoint to update the image classification
         @app.post("/update_image_classification", tags=["Images"])
         async def update_image_classification(request: UpdateClassificationRequest):
+            raise exceptions.HTTPException(
+                status=status.HTTP_410_GONE, details="This function is disabled"
+            )
             grouped_metadata = load_groups_from_pickle_file()
             # Find the group and update the classification for the specific image
             group_found = False
@@ -44,6 +47,9 @@ class ClassifyRouter:
         # Endpoint to update the 'Ron in the image' flag
         @app.post("/update_ron_in_image", tags=["Images"])
         async def update_ron_in_image(request: UpdateRonInImageRequest):
+            raise exceptions.HTTPException(
+                status=status.HTTP_410_GONE, details="This function is disabled"
+            )
             # Load existing grouped metadata
             grouped_metadata = load_groups_from_pickle_file()
 

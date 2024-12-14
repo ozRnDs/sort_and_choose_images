@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import List
 
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, Query, exceptions, status
 from fastapi.responses import JSONResponse
 
 from src.services.groups_db import load_groups_from_pickle_file, sort_and_save_groups
@@ -93,6 +93,9 @@ class GroupsRouterV1:
         # Endpoint to toggle group selection
         @app.post("/toggle_group_selection", tags=["Groups"])
         async def toggle_group_selection(group_select: ToggleGroupSelection):
+            raise exceptions.HTTPException(
+                status=status.HTTP_410_GONE, details="This function is disabled"
+            )
             # Load grouped metadata from pickle file
             grouped_metadata = load_groups_from_pickle_file()
 
