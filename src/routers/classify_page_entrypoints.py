@@ -20,7 +20,7 @@ class ClassifyRouter:
         @app.post("/update_image_classification", tags=["Images"])
         async def update_image_classification(request: UpdateClassificationRequest):
             raise exceptions.HTTPException(
-                status_code=status.HTTP_410_GONE, details="This function is disabled"
+                status_code=status.HTTP_410_GONE, detail="This function is disabled"
             )
             grouped_metadata = load_groups_from_pickle_file()
             # Find the group and update the classification for the specific image
@@ -48,7 +48,7 @@ class ClassifyRouter:
         @app.post("/update_ron_in_image", tags=["Images"])
         async def update_ron_in_image(request: UpdateRonInImageRequest):
             raise exceptions.HTTPException(
-                status_code=status.HTTP_410_GONE, details="This function is disabled"
+                status_code=status.HTTP_410_GONE, detail="This function is disabled"
             )
             # Load existing grouped metadata
             grouped_metadata = load_groups_from_pickle_file()

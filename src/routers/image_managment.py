@@ -26,7 +26,7 @@ class ImagesProcessing_V1:
         @app.get("/load_images", tags=["Admin"])
         async def load_images():
             raise exceptions.HTTPException(
-                status_code=status.HTTP_410_GONE, details="This function is disabled"
+                status_code=status.HTTP_410_GONE, detail="This function is disabled"
             )
             images: List[ImageMetadata] = []
             for root, _, files in os.walk(self._image_base_path):

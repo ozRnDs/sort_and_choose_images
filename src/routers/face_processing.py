@@ -16,6 +16,9 @@ class FaceProcessingRouter:
             "/scripts/face_detection/load_images", tags=["Admin", "Face Detection"]
         )
         async def face_detect():
+            raise exceptions.HTTPException(
+                status_code=status.HTTP_410_GONE, detail="This function is disabled"
+            )
             if self._face_recognition_service is None:
                 raise exceptions.HTTPException(
                     status_code=status.HTTP_503_SERVICE_UNAVAILABLE,

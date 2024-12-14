@@ -94,7 +94,7 @@ class GroupsRouterV1:
         @app.post("/toggle_group_selection", tags=["Groups"])
         async def toggle_group_selection(group_select: ToggleGroupSelection):
             raise exceptions.HTTPException(
-                status_code=status.HTTP_410_GONE, details="This function is disabled"
+                status_code=status.HTTP_410_GONE, detail="This function is disabled"
             )
             # Load grouped metadata from pickle file
             grouped_metadata = load_groups_from_pickle_file()
