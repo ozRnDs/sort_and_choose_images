@@ -7,8 +7,10 @@ from loguru import logger
 
 from src.services.groups_db import load_groups_from_pickle_file, sort_and_save_groups
 from src.services.groups_db_service import GroupDBService
+from src.services.images_db_service import ImageDBService
 from src.utils.model_pydantic import (
     GroupMetadata_V1,
+    ImageMetadata,
     PaginatedGroupsResponseV1,
     PaginatedGroupsResponseV2,
     ToggleGroupSelection,
@@ -150,8 +152,11 @@ class GroupsRouterV1:
 
 
 class GroupsRouterV2(GroupsRouterV1):
-    def __init__(self, group_db_service: GroupDBService):
+    def __init__(
+        self, group_db_service: GroupDBService, image_db_service: ImageDBService
+    ):
         self._group_db_service = group_db_service
+        self._image_db_service = image_db_service
 
     def create_entry_points(self, app: FastAPI):
         # Endpoint to get grouped images for preview with pagination and filtering
@@ -268,3 +273,37 @@ class GroupsRouterV2(GroupsRouterV1):
             return JSONResponse(
                 content={"min_date": min_date, "max_date": max_date}, status_code=200
             )
+
+        @app.get("/get_group_images", tags=["Groups"])
+        async def get_group_images(group_name: str = Query(...)) -> List[ImageMetadata]:
+            """
+            Fetch the list of image details for a specific group by its name.
+            """
+            try:
+                # Fetch the group metadata by name
+                group = self._group_db_service.get_group(group_name)
+
+                # If the group has no images, return an empty list
+                if not group.list_of_images:
+                    return JSONResponse(content={"images": []}, status_code=200)
+
+                # Fetch the detailed metadata for all images in the group
+                images_details = self._image_db_service.get_images(
+                    query={"full_client_path": {"$in": group.list_of_images}}
+                )
+
+                # Return the list of image details
+                return images_details
+
+            except FileNotFoundError:
+                return JSONResponse(
+                    content={"error": f"Group '{group_name}' not found."},
+                    status_code=404,
+                )
+            except Exception as err:
+                logger.exception(
+                    f"Error fetching images for group '{group_name}': {err}"
+                )
+                return JSONResponse(
+                    content={"error": "An unexpected error occurred."}, status_code=500
+                )
