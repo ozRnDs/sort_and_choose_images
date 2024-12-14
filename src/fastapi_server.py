@@ -25,15 +25,25 @@ from .services.redis_service import RedisInterface
 app_config = AppConfig()
 app = FastAPI()
 
-PICKLE_FILE = "/data/image_metadata.pkl"
-FACE_DB = "/data/face_db.json"
+PICKLE_FILE = "/data/image_metadata.pkl"  # OLD and deprecated
+
 STATIC_FOLDER_LOCATION = "src/static"
+
 BASE_PATH = "/images"
+
+FACE_DB = "/data/face_db.json"
+GROUP_DB = "/data/group_db.json"
+IMAGE_DB = "/data/image_db.json"
 
 redis_service = None
 face_recognition_service = None
 
-db_router = db_router.DbRouter(image_db_path=PICKLE_FILE, groups_db_path=GROUPED_FILE)
+db_router = db_router.DbRouter(
+    image_db_path=IMAGE_DB,
+    group_db_path=GROUP_DB,
+    image_db_path_pickle=PICKLE_FILE,
+    groups_db_path_pickle=GROUPED_FILE,
+)
 db_router.create_entry_points(app)
 
 face_db_service = FaceDBService(db_path=FACE_DB)
