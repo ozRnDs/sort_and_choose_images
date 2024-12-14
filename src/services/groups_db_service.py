@@ -196,3 +196,9 @@ class GroupDBService:
             self.add_group(group, flush=flush)
             return True
         return False
+
+    def save_db(self):
+        self.db.storage.flush()
+
+    def __del__(self):
+        self.save_db()

@@ -28,6 +28,7 @@
 
 from typing import Any, Dict, List, Optional
 
+from loguru import logger
 from tinydb import Query, TinyDB
 from tinydb.middlewares import CachingMiddleware
 from tinydb.storages import JSONStorage
@@ -123,3 +124,10 @@ class ImageDBService:
             int: The number of documents in the database.
         """
         return len(self.db)
+
+    def save_db(self):
+        logger.info("Saving DB")
+        self.db.storage.flush()
+
+    def __del__(self):
+        self.save_db()
