@@ -95,6 +95,30 @@ async function checkGroupHasClassification(groupName) {
     }
 }
 
+async function updateGroupClassificationClass(groupName) {
+    try {
+        // Call the existing checkGroupHasClassification method
+        const hasClassification = await checkGroupHasClassification(groupName);
+
+        // Find the group element using its data attribute
+        const groupElement = document.querySelector(`[data-group-name="${groupName}"]`);
+        if (!groupElement) {
+            console.warn(`Group element for ${groupName} not found`);
+            return;
+        }
+
+        // Update the class name based on the classification status
+        if (hasClassification) {
+            groupElement.classList.add('has-classification');
+        } else {
+            groupElement.classList.remove('has-classification');
+        }
+    } catch (error) {
+        console.error(`Error updating classification class for group: ${groupName}`, error);
+    }
+}
+
+
 async function fetchGroupImages(groupName) {
     try {
         const response = await fetch(`/get_group_images?group_name=${encodeURIComponent(groupName)}`);
@@ -169,6 +193,8 @@ async function toggleRonInImage(index, groupName, imageName) {
             ron_in_image: newValue
         })
     });
+
+    await updateGroupClassificationClass(groupName)
 }
 
 async function updateClassification(index, groupName, imageName, classification) {
