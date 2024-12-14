@@ -26,6 +26,8 @@
 # - **`face_recognition_status: Optional[ImageFaceRecognitionStatus]`**: Status of face recognition, default is `ImageFaceRecognitionStatus.PENDING`.
 
 
+from functools import reduce  # For combining multiple conditions
+from operator import and_  # Logical AND operation for combining conditions
 from typing import Any, Dict, List, Optional
 
 from loguru import logger
@@ -96,8 +98,18 @@ class ImageDBService:
             list: List of ImageMetadata objects matching the query.
         """
         if query:
-            conditions = [Query()[key] == value for key, value in query.items()]
-            results = self.db.search(conditions[0])
+            conditions = []
+            for key, value in query.items():
+                if isinstance(value, dict) and "$in" in value:
+                    # Handle '$in' operator
+                    conditions.append(Query()[key].one_of(value["$in"]))
+                else:
+                    # Default equality
+                    conditions.append(Query()[key] == value)
+            if len(conditions) == 1:
+                results = self.db.search(conditions[0])
+            else:
+                results = self.db.search(reduce(and_, conditions))
             for cond in conditions[1:]:
                 results = [doc for doc in results if cond(doc)]
             return [ImageMetadata(**doc) for doc in results]
