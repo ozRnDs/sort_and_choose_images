@@ -70,6 +70,14 @@ class PaginatedGroupsResponseV1(BaseModel):
     groups: List[GroupMetadata_V1]
 
 
+# Define Pydantic model for paginated response
+class PaginatedGroupsResponseV2(BaseModel):
+    total_groups: int
+    current_page: int
+    page_size: int
+    groups: List[GroupMetadata]
+
+
 class ToggleGroupSelection(BaseModel):
     group_name: str
     selection: str
