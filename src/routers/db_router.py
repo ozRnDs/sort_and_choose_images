@@ -1,6 +1,6 @@
 from typing import List
 
-from fastapi import FastAPI
+from fastapi import FastAPI, exceptions, status
 from fastapi.responses import FileResponse
 from loguru import logger
 from tqdm import tqdm
@@ -36,6 +36,7 @@ class DbRouter:
             "/download/images_db",
             description="Download Images DB",
             response_class=FileResponse,
+            tags=["DB Managment"],
         )
         def get_images_db():
             """
@@ -51,6 +52,7 @@ class DbRouter:
             "/download/groups_db",
             description="Download Groups DB",
             response_class=FileResponse,
+            tags=["DB Managment"],
         )
         def get_groups_db():
             """
@@ -62,21 +64,24 @@ class DbRouter:
                 media_type="application/octet-stream",
             )
 
-        @app.post()
+        @app.post("/scripts/migrate/groups_db", tags=["DB Managment"])
         def migrate_groups_db():
-            def migrate_pickle_to_new_dbs():
-                """
-                Migrates data from a pickle file containing GroupMetadata_V1 objects to
-                new TinyDB databases.
+            """
+            Migrates data from a pickle file containing GroupMetadata_V1 objects to new
+            TinyDB databases.
 
-                Args:
-                    group_db_path (str): Path to the new groups database file.
-                    image_db_path (str): Path to the new images database file.
-                """
+            Args:
+                group_db_path (str): Path to the new groups database file.
+                image_db_path (str): Path to the new images database file.
+            """
+            try:
                 # Load groups from the existing pickle file
-                data: List[GroupMetadata_V1] = load_groups_from_pickle_file(
-                    db_location=self._groups_db_path_pickle
-                )
+                data: List[GroupMetadata_V1] = [
+                    GroupMetadata_V1(**group)
+                    for group in load_groups_from_pickle_file(
+                        db_location=self._groups_db_path_pickle
+                    )
+                ]
 
                 # Initialize new DB services
                 group_service = GroupDBService(db_path=self._groups_db_path)
@@ -115,7 +120,18 @@ class DbRouter:
                     )
                     group_service.add_group(group_metadata)
 
-                logger.info("Migration completed successfully.")
+                return {"message": "Migration completed successfully."}
+            except FileNotFoundError as e:
+                raise exceptions.HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=str(e),
+                )
+            except Exception as e:
+                logger.exception(e)
+                raise exceptions.HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"An error occurred during migration: {e}",
+                )
 
 
 # Example usage:
