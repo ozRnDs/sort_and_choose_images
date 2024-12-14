@@ -78,6 +78,25 @@ class GroupDBService:
         else:
             return [GroupMetadata(**doc) for doc in self.db.all()]
 
+    def get_group(self, group_name: str) -> GroupMetadata:
+        """
+        Retrieves a single group document by name.
+
+        Args:
+            group_name (str): The name of the group to retrieve.
+
+        Returns:
+            GroupMetadata: The group document matching the name.
+
+        Raises:
+            FileNotFoundError: If the group does not exist in the database.
+        """
+        group_data = self.db.get(Query().group_name == group_name)
+        if not group_data:
+            logger.error(f"Group '{group_name}' not found.")
+            raise FileNotFoundError(f"Group '{group_name}' not found.")
+        return GroupMetadata(**group_data)
+
     def remove_group(self, group_name: str) -> bool:
         """
         Removes a group document from the database.
