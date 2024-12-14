@@ -1,3 +1,31 @@
+# # ImageDBService Overview
+
+# Manage image metadata in a TinyDB instance.
+
+# ## Methods
+
+# - **`__init__(db_path: str = "images_db.json")`**: Initialize with a database path.
+# - **`add_image(image: ImageMetadata, flush: bool = False) -> int`**: Add or update an image document.
+# - **`get_images(query: Optional[Dict[str, Any]] = None) -> List[ImageMetadata]`**: Retrieve all or filtered image documents.
+# - **`remove_image(image_name: str) -> bool`**: Delete an image document by name.
+# - **`count_images() -> int`**: Count total image documents.
+
+# ## `ImageMetadata` Structure
+
+# Represents the data structure for an image.
+
+# - **`name: str`**: Name of the image.
+# - **`full_client_path: str`**: Full path of the image.
+# - **`size: int`**: Size of the image in bytes.
+# - **`type: str`**: Type of the image (e.g., JPEG, PNG).
+# - **`camera: Optional[str]`**: Camera used to capture the image, default is `"Unknown"`.
+# - **`location: Optional[str]`**: Location where the image was captured, default is `"Unknown"`.
+# - **`creationDate: Optional[str]`**: Creation date of the image, default is `"Unknown"`.
+# - **`classification: str`**: Classification of the image, default is `"None"`.
+# - **`ron_in_image: bool`**: Whether "Ron" is in the image, default is `False`.
+# - **`face_recognition_status: Optional[ImageFaceRecognitionStatus]`**: Status of face recognition, default is `ImageFaceRecognitionStatus.PENDING`.
+
+
 from typing import Any, Dict, List, Optional
 
 from tinydb import Query, TinyDB
