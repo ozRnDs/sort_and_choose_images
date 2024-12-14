@@ -75,20 +75,18 @@ function displayGroups(groups) {
 
 async function fetchGroupImages(groupName) {
     try {
-        const response = await fetch(`/get_groups_paginated?page=1&page_size=100&filter_selections=interesting`);
+        const response = await fetch(`/get_group_images?group_name=${encodeURIComponent(groupName)}`);
         if (!response.ok) {
-            throw new Error('Failed to fetch group data');
+            throw new Error('Failed to fetch group images');
         }
-        const data = await response.json();
-        const group = data.groups.find(g => g.group_name === groupName);
-        if (group) {
-            highlightSelectedGroup(groupName);
-            displayImages(group.list_of_images, group.group_name);
-        }
+        const images = await response.json();
+        highlightSelectedGroup(groupName);
+        displayImages(images, groupName);
     } catch (error) {
-        console.error('Error fetching group data:', error);
+        console.error('Error fetching group images:', error);
     }
 }
+
 function displayImages(images, groupName) {
     currentGroupImages = images; // Assign to global variable
     const grid = document.getElementById('grid');
