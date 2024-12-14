@@ -54,10 +54,10 @@ classify_router = classify_page_entrypoints.ClassifyRouter(
 
 classify_router.create_entry_points(app)
 
-groups_router = groups_page_entrypoints.GroupsRouter()
+groups_router = groups_page_entrypoints.GroupsRouterV1()
 groups_router.create_entry_points(app)
 
-image_router = image_managment.ImagesProcessing(
+image_router = image_managment.ImagesProcessing_V1(
     images_base_path=BASE_PATH,
     pickle_file_path=PICKLE_FILE,
     group_file_path=GROUPED_FILE,

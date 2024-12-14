@@ -10,10 +10,10 @@ from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 
 from src.services.groups_db import sort_and_save_groups
-from src.utils.model_pydantic import GroupMetadata, ImageMetadata
+from src.utils.model_pydantic import GroupMetadata_V1, ImageMetadata
 
 
-class ImagesProcessing:
+class ImagesProcessing_V1:
     def __init__(
         self, images_base_path: str, pickle_file_path: str, group_file_path: str
     ):
@@ -163,7 +163,7 @@ class ImagesProcessing:
                 existing_group["selection"] = selection
             else:
                 # Add new group
-                group_metadata = GroupMetadata(
+                group_metadata = GroupMetadata_V1(
                     group_name=group_key,
                     group_thumbnail_url=group_thumbnail_url,
                     list_of_images=images,

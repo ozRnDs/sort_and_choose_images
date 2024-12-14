@@ -6,13 +6,13 @@ from fastapi.responses import JSONResponse
 
 from src.services.groups_db import load_groups_from_pickle_file, sort_and_save_groups
 from src.utils.model_pydantic import (
-    GroupMetadata,
-    PaginatedGroupsResponse,
+    GroupMetadata_V1,
+    PaginatedGroupsResponseV1,
     ToggleGroupSelection,
 )
 
 
-class GroupsRouter:
+class GroupsRouterV1:
     def __init__(self):
         pass
 
@@ -20,7 +20,7 @@ class GroupsRouter:
         # Endpoint to get grouped images for preview with pagination and filtering
         @app.get(
             "/get_groups_paginated",
-            response_model=PaginatedGroupsResponse,
+            response_model=PaginatedGroupsResponseV1,
             tags=["Groups"],
         )
         async def get_groups_paginated(
@@ -81,11 +81,11 @@ class GroupsRouter:
             paginated_groups = grouped_metadata[start_index:end_index]
 
             # Prepare response
-            response_content = PaginatedGroupsResponse(
+            response_content = PaginatedGroupsResponseV1(
                 total_groups=total_groups,
                 current_page=page,
                 page_size=page_size,
-                groups=[GroupMetadata(**group) for group in paginated_groups],
+                groups=[GroupMetadata_V1(**group) for group in paginated_groups],
             )
 
             return response_content

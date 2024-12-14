@@ -63,11 +63,11 @@ class Face(BaseModel):
 
 
 # Define Pydantic model for paginated response
-class PaginatedGroupsResponse(BaseModel):
+class PaginatedGroupsResponseV1(BaseModel):
     total_groups: int
     current_page: int
     page_size: int
-    groups: List[GroupMetadata]
+    groups: List[GroupMetadata_V1]
 
 
 class ToggleGroupSelection(BaseModel):
