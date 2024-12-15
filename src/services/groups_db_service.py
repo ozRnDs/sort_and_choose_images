@@ -169,6 +169,8 @@ class GroupDBService:
                 )
                 return False
             group.list_of_images.append(image_path)
+            if group.selection == "interesting":
+                group.has_new_image = True
             self.add_group(group, flush=flush)
             return True
         return False
@@ -196,6 +198,14 @@ class GroupDBService:
             self.add_group(group, flush=flush)
             return True
         return False
+
+    def saw_group_images(self, group_name):
+        group_data = self.db.get(Query().group_name == group_name)
+        if group_data:
+            group = GroupMetadata(**group_data)
+            if group.selection == "interesting":
+                group.has_new_image = False
+            self.add_group(group)
 
     def save_db(self):
         self.db.storage.flush()
