@@ -83,75 +83,78 @@ class DbRouter:
             )
 
         @app.post("/scripts/migrate/groups_db", tags=["DB Managment"])
-        def migrate_groups_db():
-            """
-            Migrates data from a pickle file containing GroupMetadata_V1 objects to new
-            TinyDB databases.
+        async def migrate_groups_db_entrypoint():
+            await self.migrate_groups_db()
 
-            Args:
-                group_db_path (str): Path to the new groups database file.
-                image_db_path (str): Path to the new images database file.
-            """
-            try:
-                # Load groups from the existing pickle file
-                data: List[GroupMetadata_V1] = [
-                    GroupMetadata_V1(**group)
-                    for group in load_groups_from_pickle_file(
-                        db_location=self._groups_db_path_pickle
-                    )
-                ]
+    async def migrate_groups_db(self):
+        """
+        Migrates data from a pickle file containing GroupMetadata_V1 objects to new
+        TinyDB databases.
 
-                # Initialize new DB services
-                group_service = self._groups_db_service
-                image_service = self._image_db_service
-
-                # Migrate data
-                for old_group in tqdm(data, desc="Migrating groups"):
-                    # Migrate images
-                    for image in tqdm(
-                        old_group.list_of_images,
-                        desc=f"Migrating images for group {old_group.group_name}",
-                        leave=False,
-                    ):
-                        image_metadata = ImageMetadata(
-                            name=image.name,
-                            full_client_path=image.full_client_path,
-                            size=image.size,
-                            type=image.type,
-                            camera=image.camera,
-                            location=image.location,
-                            creationDate=image.creationDate,
-                            classification=image.classification,
-                            ron_in_image=image.ron_in_image,
-                            face_recognition_status=image.face_recognition_status,
-                        )
-                        image_service.add_image(image_metadata)
-
-                    # Migrate group
-                    group_metadata = GroupMetadata(
-                        group_name=old_group.group_name,
-                        group_thumbnail_url=old_group.group_thumbnail_url,
-                        list_of_images=[
-                            img.full_client_path for img in old_group.list_of_images
-                        ],
-                        selection=old_group.selection,
-                    )
-                    group_service.add_group(group_metadata)
-
-                image_service.save_db()
-                group_service.save_db()
-                return {"message": "Migration completed successfully."}
-            except FileNotFoundError as e:
-                raise exceptions.HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail=str(e),
+        Args:
+            group_db_path (str): Path to the new groups database file.
+            image_db_path (str): Path to the new images database file.
+        """
+        try:
+            # Load groups from the existing pickle file
+            data: List[GroupMetadata_V1] = [
+                GroupMetadata_V1(**group)
+                for group in load_groups_from_pickle_file(
+                    db_location=self._groups_db_path_pickle
                 )
-            except Exception as e:
-                logger.exception(e)
-                raise exceptions.HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail=f"An error occurred during migration: {e}",
+            ]
+
+            # Initialize new DB services
+            group_service = self._groups_db_service
+            image_service = self._image_db_service
+
+            # Migrate data
+            for old_group in tqdm(data, desc="Migrating groups"):
+                # Migrate images
+                for image in tqdm(
+                    old_group.list_of_images,
+                    desc=f"Migrating images for group {old_group.group_name}",
+                    leave=False,
+                ):
+                    image_metadata = ImageMetadata(
+                        name=image.name,
+                        full_client_path=image.full_client_path,
+                        size=image.size,
+                        type=image.type,
+                        camera=image.camera,
+                        location=image.location,
+                        creationDate=image.creationDate,
+                        classification=image.classification,
+                        ron_in_image=image.ron_in_image,
+                        face_recognition_status=image.face_recognition_status,
+                    )
+                    image_service.add_image(image_metadata)
+
+                # Migrate group
+                group_metadata = GroupMetadata(
+                    group_name=old_group.group_name,
+                    group_thumbnail_url=old_group.group_thumbnail_url,
+                    list_of_images=[
+                        img.full_client_path for img in old_group.list_of_images
+                    ],
+                    selection=old_group.selection,
                 )
+                group_service.add_group(group_metadata)
+
+            image_service.save_db()
+            group_service.save_db()
+            return {"message": "Migration completed successfully."}
+        except FileNotFoundError as e:
+            raise exceptions.HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=str(e),
+            )
+        except Exception as e:
+            logger.exception(e)
+            raise exceptions.HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"An error occurred during migration: {e}",
+            )
 
 
 # Example usage:
