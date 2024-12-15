@@ -161,8 +161,21 @@ class DbRouter:
         groups = self._groups_db_service.get_groups()
 
         for group in tqdm(groups):
-            if group.group_name.lower() == "Unknown":
+            if group.group_name.lower() == "unknown":
+                # Clean images that exists in a different group
+                new_list_of_images = []
+                for image_path in tqdm(group.list_of_images):
+                    image = self._image_db_service.get_images(
+                        query={"full_client_path": image_path}
+                    )
+                    if image and image[0].group_name.lower == "":
+                        new_list_of_images.append(image_path)
+                        image[0].group_name = group.group_name
+                        self._image_db_service.add_image(image[0])
+                group.list_of_images = new_list_of_images
                 continue
+
+            # Update the image group_name
             images_details = self._image_db_service.get_images(
                 query={"full_client_path": {"$in": group.list_of_images}}
             )
@@ -171,9 +184,3 @@ class DbRouter:
                 if image.face_recognition_status == ImageFaceRecognitionStatus.FAILED:
                     image.face_recognition_status == ImageFaceRecognitionStatus.RETRY
                 self._image_db_service.add_image(image)
-
-
-# Example usage:
-# app = FastAPI()
-# db_router = DbRouter(image_db_path="/path/to/images.db", groups_db_path="/path/to/groups.db")
-# db_router.create_entry_points(app)
