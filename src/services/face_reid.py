@@ -3,7 +3,9 @@ import os
 import pickle
 import time
 from enum import Enum
-from typing import List, Optional
+from functools import reduce  # For combining multiple conditions
+from operator import and_  # Logical AND operation for combining conditions
+from typing import Any, Dict, List, Optional
 
 import httpx
 from loguru import logger
@@ -481,3 +483,41 @@ class FaceRecognitionService:
             progress_query.id == "progress_metadata",
         )
         # # Save each image as a unique document
+
+    def get_image_status(self, image_full_path: str) -> ImageFaceRecognitionStatus:
+        image = self._get_images({"full_client_path": image_full_path})
+        if image:
+            return image[0].face_recognition_status
+        return ImageFaceRecognitionStatus.PENDING
+
+    def _get_images(
+        self, query: Optional[Dict[str, Any]] = None
+    ) -> List[ImageMetadata]:
+        """
+        Retrieves image documents from the database.
+
+        Args:
+            query (dict, optional): Query conditions for filtering the results.
+                                    If None, retrieves all documents.
+
+        Returns:
+            list: List of ImageMetadata objects matching the query.
+        """
+        if query:
+            conditions = []
+            for key, value in query.items():
+                if isinstance(value, dict) and "$in" in value:
+                    # Handle '$in' operator
+                    conditions.append(Query()[key].one_of(value["$in"]))
+                else:
+                    # Default equality
+                    conditions.append(Query()[key] == value)
+            if len(conditions) == 1:
+                results = self._db.search(conditions[0])
+            else:
+                results = self._db.search(reduce(and_, conditions))
+            for cond in conditions[1:]:
+                results = [doc for doc in results if cond(doc)]
+            return [ImageMetadata(**doc) for doc in results]
+        else:
+            return [ImageMetadata(**doc) for doc in self._db.all()]
