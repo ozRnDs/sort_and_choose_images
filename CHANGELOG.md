@@ -1,3 +1,20 @@
+## 0.13.0 (2024-12-15)
+
+### Feat
+
+- **ImageDBService**: Add counting functions and update all failed images
+- **FaceRecognitionService**: Add get_image_status to support migrations
+
+### Fix
+
+- **FaceRecognitionService**: Work with the image_db_service instead of seperate db for images status
+- **FaceDBService**: Add missing save_db function
+
+### Refactor
+
+- **fastapi_server**: Pass image_db_service to the fastapi_server
+- **FaceProcessingRouter**: Deprecate old entrypoints
+
 ## 0.12.0 (2024-12-15)
 
 ### Feat
