@@ -287,6 +287,9 @@ class GroupsRouterV2(GroupsRouterV1):
                 if not group.list_of_images:
                     return JSONResponse(content={"images": []}, status_code=200)
 
+                # Update the group as saw
+                self._group_db_service.saw_group_images(group_name=group_name)
+
                 # Fetch the detailed metadata for all images in the group
                 images_details = self._image_db_service.get_images(
                     query={"full_client_path": {"$in": group.list_of_images}}
