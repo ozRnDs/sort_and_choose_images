@@ -122,7 +122,7 @@ class GroupDBService:
         group_data = self.db.get(Query().group_name == group_name)
         if not group_data:
             logger.error(f"Group '{group_name}' not found.")
-            raise FileNotFoundError(f"Group '{group_name}' not found.")
+            return None
         return GroupMetadata(**group_data)
 
     def remove_group(self, group_name: str) -> bool:

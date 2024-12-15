@@ -139,10 +139,10 @@
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav">
                     <li class="nav-item">
-                        <a class="nav-link active" href="/static/groups.html">Groups</a>
+                        <a class="nav-link" href="/static/groups.html">Groups</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="/static/similar_groups.html">Similar Groups</a>
+                        <a class="nav-link active" href="/static/similar_groups.html">Similar Groups</a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" href="/static/images.html">Classify</a>
@@ -154,7 +154,7 @@
 
     <div class="container">
         <h1 class="text-center mb-4">Image Group Preview</h1>
-        <div class="row mb-5">
+        <!-- <div class="row mb-5">
             <div class="col-md-6 offset-md-3">
                 <label for="rangeSlider1" class="form-label">Select Date Range:</label>
                 <div id="rangeSlider1"></div>
@@ -162,10 +162,7 @@
                     <span id="startDate"></span> - <span id="endDate"></span>
                 </div>
             </div>
-        </div>
-        <div class="text-center mb-3">
-            <button class="btn btn-secondary" id="toggleFilter" onclick="toggleFilter()">Filter Unprocessed: Off</button>
-        </div>
+        </div> -->
         <div id="grid" class="grid-container"></div>
         <div class="pagination">
             <button class="btn btn-primary" id="prevPage" onclick="changePage(-1)" disabled>&laquo; Previous</button>
@@ -185,13 +182,13 @@
         let endDate = null;
 
         document.addEventListener("DOMContentLoaded", function() {
-            initializeDateSlider();
-            fetchMinMaxDates().then(() => {
-                loadStateFromLocalStorage();
-                loadFilterFromCookies();
-                fetchGroups(currentPage);
+            // initializeDateSlider();
+            // fetchMinMaxDates().then(() => {
+            loadStateFromLocalStorage();
+                // loadFilterFromCookies();
+            fetchGroups(currentPage);
             });
-        });
+        // });
 
         window.addEventListener("beforeunload", function() {
             saveStateToLocalStorage();
@@ -330,22 +327,17 @@
 
         async function fetchGroups(page) {
             try {
-                const filterSelections = filterUnprocessed ? ["unprocessed"] : ["unprocessed", "interesting", "not-interesting"];
-                let url = `/get_groups_paginated?page=${page}&page_size=${pageSize}&${filterSelections.map(selection => `filter_selections=${selection}`).join('&')}`;
-                if (startDate) {
-                    url += `&start_date=${startDate}`;
-                }
-                if (endDate) {
-                    url += `&end_date=${endDate}`;
-                }
-                const response = await fetch(url);
+                const threshold = 0.6; // Threshold value for filtering groups
+                const response = await fetch(`/similarity/ron/groups?threshold=${threshold}&page=${page}&page_size=${pageSize}`);
+                
                 if (!response.ok) {
                     throw new Error('Failed to fetch group data');
                 }
+                
                 const data = await response.json();
-                totalGroups = data.total_groups;
-                displayGroups(data.groups);
-                updatePaginationInfo(page);
+                totalGroups = data.total_groups; // Assuming the response includes the total number of groups
+                displayGroups(data.groups); // Display the groups for the current page
+                updatePaginationInfo(page); // Update the pagination UI
             } catch (error) {
                 console.error('Error fetching group data:', error);
             }
@@ -487,6 +479,21 @@
             filterButton.textContent = `Filter Unprocessed: ${filterUnprocessed ? 'On' : 'Off'}`;
             setCookie('filterUnprocessed', filterUnprocessed, 7);
             fetchGroups(currentPage);
+        }
+
+        async function fetchRonGroups() {
+            try {
+                const threshold = 0.6; // You can modify the threshold as needed or make it dynamic
+                const response = await fetch(`/similarity/ron/groups?threshold=${threshold}`);
+                if (!response.ok) {
+                    throw new Error('Failed to fetch Ron groups');
+                }
+                const data = await response.json();
+                displayGroups(data.groups); // Use the existing `displayGroups` function to show the results
+                updatePaginationInfo(1); // Reset pagination info, assuming this displays all results
+            } catch (error) {
+                console.error('Error fetching Ron groups:', error);
+            }
         }
     </script>
 </body>

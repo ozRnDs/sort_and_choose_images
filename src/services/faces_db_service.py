@@ -1,3 +1,5 @@
+from functools import reduce  # For combining multiple conditions
+from operator import and_  # Logical AND operation for combining conditions
 from typing import Any, Dict, List
 
 from loguru import logger
@@ -69,13 +71,23 @@ class FaceDBService:
             list: List of Face objects matching the query.
         """
         if query:
-            conditions = [Query()[key] == value for key, value in query.items()]
-            results = self.db.search(conditions[0])
+            conditions = []
+            for key, value in query.items():
+                if isinstance(value, dict) and "$in" in value:
+                    # Handle '$in' operator
+                    conditions.append(Query()[key].one_of(value["$in"]))
+                else:
+                    # Default equality
+                    conditions.append(Query()[key] == value)
+            if len(conditions) == 1:
+                results = self.db.search(conditions[0])
+            else:
+                results = self.db.search(reduce(and_, conditions))
             for cond in conditions[1:]:
                 results = [doc for doc in results if cond(doc)]
             return [Face(**doc) for doc in results]
         else:
-            return [Face(**doc) for doc in self.faces_table.all()]
+            return [Face(**doc) for doc in self.db.all()]
 
     def remove_face(self, face_id: str) -> bool:
         """

@@ -11,11 +11,12 @@ from loguru import logger
 
 from src.routers import (
     classify_page_entrypoints,
-    db_router,
+    db_managment_entrypoints,
     face_managment,
     face_processing,
     groups_page_entrypoints,
     image_managment,
+    similarity_entrypoints,
 )
 
 from .config import AppConfig
@@ -45,16 +46,6 @@ face_recognition_service = None
 group_db_service = GroupDBService(db_path=GROUP_DB)
 image_db_service = ImageDBService(db_path=IMAGE_DB)
 face_db_service = FaceDBService(db_path=FACE_DB)
-
-db_router = db_router.DbRouter(
-    image_db_path=IMAGE_DB,
-    group_db_path=GROUP_DB,
-    image_db_path_pickle=PICKLE_FILE,
-    groups_db_path_pickle=GROUPED_FILE,
-    image_db_service=image_db_service,
-    group_db_service=group_db_service,
-)
-db_router.create_entry_points(app)
 
 classify_router = classify_page_entrypoints.ClassifyRouterV2(
     group_db_service=group_db_service,
@@ -96,6 +87,24 @@ try:
         face_db_service=face_db_service,
     )
     face_managment_router.create_entry_points(app)
+
+    similairty_router = similarity_entrypoints.SimilarityRouter(
+        face_db_service=face_db_service,
+        redis_service=redis_service,
+        group_db_service=group_db_service,
+    )
+    similairty_router.create_entry_points(app)
+
+    db_router = db_managment_entrypoints.DbRouter(
+        image_db_path=IMAGE_DB,
+        group_db_path=GROUP_DB,
+        image_db_path_pickle=PICKLE_FILE,
+        groups_db_path_pickle=GROUPED_FILE,
+        image_db_service=image_db_service,
+        group_db_service=group_db_service,
+        face_recognition_service=face_recognition_service,
+    )
+    db_router.create_entry_points(app)
 
 except Exception as err:
     logger.error(f"Failed to initialize redis or face recognition service: {err}")
@@ -148,15 +157,21 @@ async def perform_migration():
 
     # Copy GROUP_DB to backup_group_path
     shutil.copy(group_db, backup_group_path)
-    logger.info("Starting migration...")
+    logger.info("Starting db migration...")
     # Perform database migration
     await db_router.update_group_field_in_images()
-
     logger.info("Finished Migration")
+
+
+def start_up_tasks():
+    logger.info("Starting Similar Groups Calculation")
+    similairty_router.calculate_groups_with_target()
+    logger.info("End Similar Groups Calculation")
 
 
 async def main():
     await perform_migration()
+    start_up_tasks()
 
     task_list = []
     if face_recognition_service:

@@ -9,7 +9,7 @@ body {
     position: fixed;
     top: 50px;
     width: max(min(25vw,300px),250px);
-    height: 100vh;
+    height: 90vh;
     overflow-y: auto;
     background-color: #e9ecef;
     padding: 20px;

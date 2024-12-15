@@ -6,6 +6,7 @@ from fastapi.responses import FileResponse
 from loguru import logger
 from tqdm import tqdm
 
+from src.services.face_reid import FaceRecognitionService
 from src.services.groups_db import load_groups_from_pickle_file
 from src.services.groups_db_service import GroupDBService
 from src.services.images_db_service import ImageDBService
@@ -31,6 +32,7 @@ class DbRouter:
         groups_db_path_pickle: str,
         image_db_service: ImageDBService,
         group_db_service: GroupDBService,
+        face_recognition_service: FaceRecognitionService,
     ):
         """
         Initialize the DbRouter with paths to the image and groups databases.
@@ -41,6 +43,7 @@ class DbRouter:
         self._groups_db_path_pickle = groups_db_path_pickle
         self._image_db_service = image_db_service
         self._groups_db_service = group_db_service
+        self._face_recognition_service = face_recognition_service
 
     def create_entry_points(self, app: FastAPI):
         """
@@ -173,6 +176,7 @@ class DbRouter:
                         image[0].group_name = group.group_name
                         self._image_db_service.add_image(image[0])
                 group.list_of_images = new_list_of_images
+                self._groups_db_service.add_group(group, flush=True)
                 continue
 
             # Update the image group_name
@@ -181,6 +185,14 @@ class DbRouter:
             )
             for image in tqdm(images_details):
                 image.group_name = group.group_name
+                image.face_recognition_status = (
+                    self._face_recognition_service.get_image_status(
+                        image_full_path=image.full_client_path
+                    )
+                )
                 if image.face_recognition_status == ImageFaceRecognitionStatus.FAILED:
                     image.face_recognition_status == ImageFaceRecognitionStatus.RETRY
                 self._image_db_service.add_image(image)
+
+        self._image_db_service.save_db()
+        self._groups_db_service.save_db()
