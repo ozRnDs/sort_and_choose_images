@@ -69,9 +69,14 @@ async function displayGroups(groups) {
             const hasClassification = await checkGroupHasClassification(group.group_name); // Await for each group's classification check
             const div = document.createElement('div');
             div.className = `group-item ${hasClassification ? 'has-classification' : ''}`;
+            
             div.dataset.groupName = group.group_name;
             div.onclick = () => fetchGroupImages(group.group_name);
-            div.innerHTML = `<strong>${group.group_name}</strong> (${group.list_of_images.length} images)`;
+            div.innerHTML = `
+                <strong>${group.group_name}</strong> 
+                (${group.list_of_images.length} images)
+                ${group.has_new_image ? '<span class="new-icon">🆕</span>' : ''}
+            `;
             monthDiv.appendChild(div);
         }
 
