@@ -74,6 +74,7 @@ try:
         face_db_service=face_db_service,
         progress_file=f"{app_config.DATA_BASE_PATH}/face_recognition_progress.pkl",
         db_path=f"{app_config.DATA_BASE_PATH}/face_recognition_progress.json",
+        image_db_service=image_db_service,
     )
 
     face_recognition_router = face_processing.FaceProcessingRouter(
@@ -174,9 +175,6 @@ async def main():
     start_up_tasks()
 
     task_list = []
-    if face_recognition_service:
-        load_images_task = asyncio.create_task(face_recognition_service.load_progress())
-        task_list.append(load_images_task)
 
     run_fast_api_server = asyncio.create_task(start_fastapi_server())
     task_list.append(run_fast_api_server)
