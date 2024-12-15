@@ -33,6 +33,7 @@ mypy = "^1.4.1"
 pytest = "^7.2.2"
 pytest-mock = "^3.10.0"
 commitizen = "^3.29.1"
+typing-extensions = "^4.12.2"
 
 
 [tool.isort]
