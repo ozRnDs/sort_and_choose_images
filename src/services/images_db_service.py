@@ -35,7 +35,7 @@ from tinydb import Query, TinyDB
 from tinydb.middlewares import CachingMiddleware
 from tinydb.storages import JSONStorage
 
-from ..utils.model_pydantic import ImageMetadata
+from ..utils.model_pydantic import ImageFaceRecognitionStatus, ImageMetadata
 
 
 class ImageDBService:
@@ -136,6 +136,19 @@ class ImageDBService:
             int: The number of documents in the database.
         """
         return len(self.db)
+
+    def count_recognition_status(
+        self, image_recognition_status: ImageFaceRecognitionStatus
+    ):
+        return self.db.count(
+            Query().face_recognition_status == image_recognition_status.value
+        )
+
+    def change_failed_images_to_retry(self):
+        return self.db.update(
+            {"face_recognition_status": ImageFaceRecognitionStatus.RETRY},
+            Query().face_recognition_status == ImageFaceRecognitionStatus.FAILED,
+        )
 
     def save_db(self):
         logger.info("Saving DB")
