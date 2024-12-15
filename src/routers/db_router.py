@@ -152,6 +152,19 @@ class DbRouter:
                 detail=f"An error occurred during migration: {e}",
             )
 
+    async def update_group_field_in_images(self):
+        groups = self._groups_db_service.get_groups()
+
+        for group in tqdm(groups):
+            if group.group_name.lower() == "Unknown":
+                continue
+            images_details = self._image_db_service.get_images(
+                query={"full_client_path": {"$in": group.list_of_images}}
+            )
+            for image in tqdm(images_details):
+                image.group_name = group.group_name
+                self._image_db_service.add_image(image)
+
 
 # Example usage:
 # app = FastAPI()
