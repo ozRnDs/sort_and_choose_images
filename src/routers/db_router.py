@@ -82,10 +82,6 @@ class DbRouter:
                 media_type="application/octet-stream",
             )
 
-        @app.post("/scripts/migrate/groups_db", tags=["DB Managment"])
-        async def migrate_groups_db_entrypoint():
-            await self.migrate_groups_db()
-
     async def migrate_groups_db(self):
         """
         Migrates data from a pickle file containing GroupMetadata_V1 objects to new
