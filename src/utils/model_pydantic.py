@@ -36,6 +36,7 @@ class GroupMetadata(BaseModel):
         "unprocessed"  # Can be "unprocessed", "interesting", or "not interesting"
     )
     ron_in_group: Optional[bool] = False
+    has_new_image: Optional[bool] = False
 
     @property
     def image_count(self):
