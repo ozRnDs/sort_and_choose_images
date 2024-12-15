@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 class ImageFaceRecognitionStatus(str, Enum):
     PENDING = "pending"
     FAILED = "failed"
+    RETRY = "retry"
     DONE = "done"
 
 
