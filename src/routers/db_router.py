@@ -9,7 +9,12 @@ from tqdm import tqdm
 from src.services.groups_db import load_groups_from_pickle_file
 from src.services.groups_db_service import GroupDBService
 from src.services.images_db_service import ImageDBService
-from src.utils.model_pydantic import GroupMetadata, GroupMetadata_V1, ImageMetadata
+from src.utils.model_pydantic import (
+    GroupMetadata,
+    GroupMetadata_V1,
+    ImageFaceRecognitionStatus,
+    ImageMetadata,
+)
 
 
 class DBType(str, Enum):
@@ -163,6 +168,8 @@ class DbRouter:
             )
             for image in tqdm(images_details):
                 image.group_name = group.group_name
+                if image.face_recognition_status == ImageFaceRecognitionStatus.FAILED:
+                    image.face_recognition_status == ImageFaceRecognitionStatus.RETRY
                 self._image_db_service.add_image(image)
 
 
