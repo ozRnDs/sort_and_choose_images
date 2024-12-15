@@ -37,8 +37,8 @@ STATIC_FOLDER_LOCATION = "src/static"
 BASE_PATH = "/images"
 
 FACE_DB = "/data/face_db.json"
-GROUP_DB = "/data/group_db_local.json"
-IMAGE_DB = "/data/image_db_local.json"
+GROUP_DB = "/data/group_db.json"
+IMAGE_DB = "/data/image_db.json"
 
 redis_service = None
 face_recognition_service = None
@@ -46,16 +46,6 @@ face_recognition_service = None
 group_db_service = GroupDBService(db_path=GROUP_DB)
 image_db_service = ImageDBService(db_path=IMAGE_DB)
 face_db_service = FaceDBService(db_path=FACE_DB)
-
-db_router = db_managment_entrypoints.DbRouter(
-    image_db_path=IMAGE_DB,
-    group_db_path=GROUP_DB,
-    image_db_path_pickle=PICKLE_FILE,
-    groups_db_path_pickle=GROUPED_FILE,
-    image_db_service=image_db_service,
-    group_db_service=group_db_service,
-)
-db_router.create_entry_points(app)
 
 classify_router = classify_page_entrypoints.ClassifyRouterV2(
     group_db_service=group_db_service,
@@ -104,6 +94,17 @@ try:
         group_db_service=group_db_service,
     )
     similairty_router.create_entry_points(app)
+
+    db_router = db_managment_entrypoints.DbRouter(
+        image_db_path=IMAGE_DB,
+        group_db_path=GROUP_DB,
+        image_db_path_pickle=PICKLE_FILE,
+        groups_db_path_pickle=GROUPED_FILE,
+        image_db_service=image_db_service,
+        group_db_service=group_db_service,
+        face_recognition_service=face_recognition_service,
+    )
+    db_router.create_entry_points(app)
 
 except Exception as err:
     logger.error(f"Failed to initialize redis or face recognition service: {err}")
