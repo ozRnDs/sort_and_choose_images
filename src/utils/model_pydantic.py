@@ -24,6 +24,7 @@ class ImageMetadata(BaseModel):
     face_recognition_status: Optional[
         ImageFaceRecognitionStatus
     ] = ImageFaceRecognitionStatus.PENDING
+    group_name: Optional[str] = "Unknown"
 
 
 class GroupMetadata(BaseModel):
