@@ -1,5 +1,7 @@
 import asyncio
 import os
+import shutil
+from pathlib import Path
 
 import uvicorn
 from fastapi import FastAPI
@@ -20,37 +22,57 @@ from .config import AppConfig
 from .services.face_reid import FaceRecognitionService
 from .services.faces_db_service import FaceDBService
 from .services.groups_db import GROUPED_FILE
+from .services.groups_db_service import GroupDBService
+from .services.images_db_service import ImageDBService
 from .services.redis_service import RedisInterface
 
 app_config = AppConfig()
 app = FastAPI()
 
-PICKLE_FILE = "/data/image_metadata.pkl"
-FACE_DB = "/data/face_db.json"
+PICKLE_FILE = "/data/image_metadata.pkl"  # OLD and deprecated
+
 STATIC_FOLDER_LOCATION = "src/static"
+
 BASE_PATH = "/images"
+
+FACE_DB = "/data/face_db.json"
+GROUP_DB = "/data/group_db.json"
+IMAGE_DB = "/data/image_db.json"
 
 redis_service = None
 face_recognition_service = None
 
-db_router = db_router.DbRouter(image_db_path=PICKLE_FILE, groups_db_path=GROUPED_FILE)
-db_router.create_entry_points(app)
-
+group_db_service = GroupDBService(db_path=GROUP_DB)
+image_db_service = ImageDBService(db_path=IMAGE_DB)
 face_db_service = FaceDBService(db_path=FACE_DB)
 
-classify_router = classify_page_entrypoints.ClassifyRouter(
-    face_db_service=face_db_service
+db_router = db_router.DbRouter(
+    image_db_path=IMAGE_DB,
+    group_db_path=GROUP_DB,
+    image_db_path_pickle=PICKLE_FILE,
+    groups_db_path_pickle=GROUPED_FILE,
+    image_db_service=image_db_service,
+    group_db_service=group_db_service,
+)
+db_router.create_entry_points(app)
+
+classify_router = classify_page_entrypoints.ClassifyRouterV2(
+    group_db_service=group_db_service,
+    image_db_service=image_db_service,
+    face_db_service=face_db_service,
 )
 
 classify_router.create_entry_points(app)
 
-groups_router = groups_page_entrypoints.GroupsRouter()
+groups_router = groups_page_entrypoints.GroupsRouterV2(
+    group_db_service=group_db_service, image_db_service=image_db_service
+)
 groups_router.create_entry_points(app)
 
-image_router = image_managment.ImagesProcessing(
+image_router = image_managment.ImagesProcessingV2(
     images_base_path=BASE_PATH,
-    pickle_file_path=PICKLE_FILE,
-    group_file_path=GROUPED_FILE,
+    group_db_service=group_db_service,
+    image_db_service=image_db_service,
 )
 image_router.create_entry_points(app)
 try:
@@ -103,7 +125,42 @@ async def start_fastapi_server():
     await server.serve()
 
 
+async def perform_migration():
+    # Check if both files exist, exit if either is missing
+    group_db = Path(GROUPED_FILE)
+    pickle_file = Path(PICKLE_FILE)
+    if not (pickle_file.exists() and group_db.exists()):
+        return
+    backup_path = Path("/data") / "backup-0.10.0"
+    if backup_path.exists():
+        return
+    logger.info("Updating software databases...")
+
+    backup_group_path = backup_path / "group.pkl"
+    backup_images_path = backup_path / "images.pkl"
+
+    logger.info("Backing up old db...")
+    # Create backup_path as a folder
+    backup_path.mkdir(parents=True, exist_ok=True)
+
+    # Copy PICKLE_FILE to backup_images_path
+    shutil.copy(pickle_file, backup_images_path)
+
+    # Copy GROUP_DB to backup_group_path
+    shutil.copy(group_db, backup_group_path)
+    logger.info("Starting migration...")
+    # Perform database migration
+    await db_router.migrate_groups_db()
+
+    # Delete PICKLE_FILE and GROUP_DB
+    pickle_file.unlink()
+    group_db.unlink()
+    logger.info("Finished Migration")
+
+
 async def main():
+    await perform_migration()
+
     task_list = []
     if face_recognition_service:
         load_images_task = asyncio.create_task(face_recognition_service.load_progress())

@@ -40,11 +40,12 @@ async function fetchGroups() {
     }
 }
 
-function displayGroups(groups) {
+async function displayGroups(groups) {
     const groupsList = document.getElementById('groupsList');
     groupsList.innerHTML = '';
     const groupedByMonth = {};
 
+    // Group by month
     groups.forEach(group => {
         const dateParts = group.group_name.split('-');
         if (dateParts.length >= 2) {
@@ -56,39 +57,82 @@ function displayGroups(groups) {
         }
     });
 
-    Object.keys(groupedByMonth).sort().forEach(month => {
+    // Process each group
+    // Process each group asynchronously
+    for (const month of Object.keys(groupedByMonth).sort()) {
         const monthDiv = document.createElement('div');
         monthDiv.className = 'month-group';
         monthDiv.innerHTML = `<h5>${month}</h5>`;
-        groupedByMonth[month].forEach(group => {
-            const hasClassification = group.list_of_images.some(image => image.classification !== 'None'); // Check if any image is classified
+
+        // Create divs for each group asynchronously
+        for (const group of groupedByMonth[month]) {
+            const hasClassification = await checkGroupHasClassification(group.group_name); // Await for each group's classification check
             const div = document.createElement('div');
             div.className = `group-item ${hasClassification ? 'has-classification' : ''}`;
             div.dataset.groupName = group.group_name;
             div.onclick = () => fetchGroupImages(group.group_name);
             div.innerHTML = `<strong>${group.group_name}</strong> (${group.list_of_images.length} images)`;
             monthDiv.appendChild(div);
-        });
+        }
+
         groupsList.appendChild(monthDiv);
-    });
+    }
 }
+
+async function checkGroupHasClassification(groupName) {
+    try {
+        const response = await fetch(`/check_group_has_classification?group_name=${encodeURIComponent(groupName)}`);
+        if (!response.ok) {
+            console.error(`Failed to fetch images for group: ${groupName}`);
+            return false;
+        }
+
+        const data = await response.json();
+        return data.has_classification
+    } catch (error) {
+        console.error(`Error checking classification for group: ${groupName}`, error);
+        return false;
+    }
+}
+
+async function updateGroupClassificationClass(groupName) {
+    try {
+        // Call the existing checkGroupHasClassification method
+        const hasClassification = await checkGroupHasClassification(groupName);
+
+        // Find the group element using its data attribute
+        const groupElement = document.querySelector(`[data-group-name="${groupName}"]`);
+        if (!groupElement) {
+            console.warn(`Group element for ${groupName} not found`);
+            return;
+        }
+
+        // Update the class name based on the classification status
+        if (hasClassification) {
+            groupElement.classList.add('has-classification');
+        } else {
+            groupElement.classList.remove('has-classification');
+        }
+    } catch (error) {
+        console.error(`Error updating classification class for group: ${groupName}`, error);
+    }
+}
+
 
 async function fetchGroupImages(groupName) {
     try {
-        const response = await fetch(`/get_groups_paginated?page=1&page_size=100&filter_selections=interesting`);
+        const response = await fetch(`/get_group_images?group_name=${encodeURIComponent(groupName)}`);
         if (!response.ok) {
-            throw new Error('Failed to fetch group data');
+            throw new Error('Failed to fetch group images');
         }
-        const data = await response.json();
-        const group = data.groups.find(g => g.group_name === groupName);
-        if (group) {
-            highlightSelectedGroup(groupName);
-            displayImages(group.list_of_images, group.group_name);
-        }
+        const images = await response.json();
+        highlightSelectedGroup(groupName);
+        displayImages(images, groupName);
     } catch (error) {
-        console.error('Error fetching group data:', error);
+        console.error('Error fetching group images:', error);
     }
 }
+
 function displayImages(images, groupName) {
     currentGroupImages = images; // Assign to global variable
     const grid = document.getElementById('grid');
@@ -149,6 +193,8 @@ async function toggleRonInImage(index, groupName, imageName) {
             ron_in_image: newValue
         })
     });
+
+    await updateGroupClassificationClass(groupName)
 }
 
 async function updateClassification(index, groupName, imageName, classification) {

@@ -3,7 +3,7 @@ import time
 from fastapi import FastAPI, exceptions, status
 
 from src.services.face_reid import FaceRecognitionService
-from src.services.groups_db import load_groups_from_file
+from src.services.groups_db import load_groups_from_pickle_file
 from src.utils.model_pydantic import GroupMetadata
 
 
@@ -16,12 +16,15 @@ class FaceProcessingRouter:
             "/scripts/face_detection/load_images", tags=["Admin", "Face Detection"]
         )
         async def face_detect():
+            raise exceptions.HTTPException(
+                status_code=status.HTTP_410_GONE, detail="This function is disabled"
+            )
             if self._face_recognition_service is None:
                 raise exceptions.HTTPException(
                     status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                     detail="Face Detection Service is not available",
                 )
-            groups_metadata = load_groups_from_file()
+            groups_metadata = load_groups_from_pickle_file()
             images = []
             for group in groups_metadata:
                 group = GroupMetadata(**group)
