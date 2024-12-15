@@ -28,8 +28,8 @@ def setup_service():
     )
 
     # Use in-memory storage for TinyDB
-    service._db = TinyDB(storage=MemoryStorage)
-    service._progress_table = service._db.table("progress")
+    service._legacy_db = TinyDB(storage=MemoryStorage)
+    service._progress_table = service._legacy_db.table("progress")
     return service
 
 
