@@ -127,17 +127,17 @@ async def start_fastapi_server():
 
 async def perform_migration():
     # Check if both files exist, exit if either is missing
-    group_db = Path(GROUPED_FILE)
-    pickle_file = Path(PICKLE_FILE)
+    group_db = Path(GROUP_DB)
+    pickle_file = Path(IMAGE_DB)
     if not (pickle_file.exists() and group_db.exists()):
         return
-    backup_path = Path("/data") / "backup-0.10.0"
+    backup_path = Path("/data") / "backup-0.11.0"
     if backup_path.exists():
         return
     logger.info("Updating software databases...")
 
-    backup_group_path = backup_path / "group.pkl"
-    backup_images_path = backup_path / "images.pkl"
+    backup_group_path = backup_path / "group_db.json"
+    backup_images_path = backup_path / "image_db.json"
 
     logger.info("Backing up old db...")
     # Create backup_path as a folder
@@ -150,11 +150,8 @@ async def perform_migration():
     shutil.copy(group_db, backup_group_path)
     logger.info("Starting migration...")
     # Perform database migration
-    await db_router.migrate_groups_db()
+    await db_router.update_group_field_in_images()
 
-    # Delete PICKLE_FILE and GROUP_DB
-    pickle_file.unlink()
-    group_db.unlink()
     logger.info("Finished Migration")
 
 
