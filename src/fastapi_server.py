@@ -1,5 +1,7 @@
 import asyncio
 import os
+import shutil
+from pathlib import Path
 
 import uvicorn
 from fastapi import FastAPI
@@ -123,7 +125,42 @@ async def start_fastapi_server():
     await server.serve()
 
 
+async def perform_migration():
+    # Check if both files exist, exit if either is missing
+    group_db = Path(GROUPED_FILE)
+    pickle_file = Path(PICKLE_FILE)
+    if not (pickle_file.exists() and group_db.exists()):
+        return
+    backup_path = Path("/data") / "backup-0.10.0"
+    if backup_path.exists():
+        return
+    logger.info("Updating software databases...")
+
+    backup_group_path = backup_path / "group.pkl"
+    backup_images_path = backup_path / "images.pkl"
+
+    logger.info("Backing up old db...")
+    # Create backup_path as a folder
+    backup_path.mkdir(parents=True, exist_ok=True)
+
+    # Copy PICKLE_FILE to backup_images_path
+    shutil.copy(pickle_file, backup_images_path)
+
+    # Copy GROUP_DB to backup_group_path
+    shutil.copy(group_db, backup_group_path)
+    logger.info("Starting migration...")
+    # Perform database migration
+    await db_router.migrate_groups_db()
+
+    # Delete PICKLE_FILE and GROUP_DB
+    pickle_file.unlink()
+    group_db.unlink()
+    logger.info("Finished Migration")
+
+
 async def main():
+    await perform_migration()
+
     task_list = []
     if face_recognition_service:
         load_images_task = asyncio.create_task(face_recognition_service.load_progress())
