@@ -181,6 +181,7 @@ class FaceManagmentRouter:
             ]
             selected_face.ron_in_face = not selected_face.ron_in_face
             self._face_db_service.add_face(selected_face, flush=True)
+            # TODO: Update image and face with the information
             return selected_face.ron_in_face
 
         @app.post("/face/{face_id}/hide", tags=["Face Management"])

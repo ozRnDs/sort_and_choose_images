@@ -266,7 +266,7 @@ class FaceRecognitionService:
                 )
                 | (
                     query.face_recognition_status
-                    == ImageFaceRecognitionStatus.FAILED.value
+                    == ImageFaceRecognitionStatus.RETRY.value
                 )
             )
 

@@ -9,7 +9,12 @@ from tqdm import tqdm
 from src.services.groups_db import load_groups_from_pickle_file
 from src.services.groups_db_service import GroupDBService
 from src.services.images_db_service import ImageDBService
-from src.utils.model_pydantic import GroupMetadata, GroupMetadata_V1, ImageMetadata
+from src.utils.model_pydantic import (
+    GroupMetadata,
+    GroupMetadata_V1,
+    ImageFaceRecognitionStatus,
+    ImageMetadata,
+)
 
 
 class DBType(str, Enum):
@@ -82,10 +87,6 @@ class DbRouter:
                 media_type="application/octet-stream",
             )
 
-        @app.post("/scripts/migrate/groups_db", tags=["DB Managment"])
-        async def migrate_groups_db_entrypoint():
-            await self.migrate_groups_db()
-
     async def migrate_groups_db(self):
         """
         Migrates data from a pickle file containing GroupMetadata_V1 objects to new
@@ -156,8 +157,30 @@ class DbRouter:
                 detail=f"An error occurred during migration: {e}",
             )
 
+    async def update_group_field_in_images(self):
+        groups = self._groups_db_service.get_groups()
 
-# Example usage:
-# app = FastAPI()
-# db_router = DbRouter(image_db_path="/path/to/images.db", groups_db_path="/path/to/groups.db")
-# db_router.create_entry_points(app)
+        for group in tqdm(groups):
+            if group.group_name.lower() == "unknown":
+                # Clean images that exists in a different group
+                new_list_of_images = []
+                for image_path in tqdm(group.list_of_images):
+                    image = self._image_db_service.get_images(
+                        query={"full_client_path": image_path}
+                    )
+                    if image and image[0].group_name.lower == "":
+                        new_list_of_images.append(image_path)
+                        image[0].group_name = group.group_name
+                        self._image_db_service.add_image(image[0])
+                group.list_of_images = new_list_of_images
+                continue
+
+            # Update the image group_name
+            images_details = self._image_db_service.get_images(
+                query={"full_client_path": {"$in": group.list_of_images}}
+            )
+            for image in tqdm(images_details):
+                image.group_name = group.group_name
+                if image.face_recognition_status == ImageFaceRecognitionStatus.FAILED:
+                    image.face_recognition_status == ImageFaceRecognitionStatus.RETRY
+                self._image_db_service.add_image(image)
