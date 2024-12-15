@@ -13,7 +13,7 @@ from tqdm import tqdm
 from src.services.groups_db import sort_and_save_groups
 from src.services.groups_db_service import GroupDBService
 from src.services.images_db_service import ImageDBService
-from src.utils.model_pydantic import GroupMetadata_V1, ImageMetadata
+from src.utils.model_pydantic import GroupMetadata, GroupMetadata_V1, ImageMetadata
 
 
 class ImagesProcessingV1:
@@ -315,12 +315,11 @@ class ImagesProcessingV2:
         existing_group = self._group_db_service.get_group(group_name)
         if not existing_group:
             # Create a new group if it doesn't exist
-            group_metadata = {
-                "group_name": group_name,
-                "group_thumbnail_url": image_metadata.full_client_path,
-                "list_of_images": [],
-                "selection": "unprocessed",
-            }
+            group_metadata = GroupMetadata(
+                group_name=group_name,
+                group_thumbnail_url=image_metadata.full_client_path,
+                list_of_images=[],
+            )
             self._group_db_service.add_group(group_metadata, flush=True)
 
         return group_name
