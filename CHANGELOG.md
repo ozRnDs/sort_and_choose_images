@@ -1,3 +1,9 @@
+## 0.12.0 (2024-12-15)
+
+### Feat
+
+- **images.css,images.js**: Show new_images flag in the UI
+
 ## 0.11.0 (2024-12-15)
 
 ### Feat
