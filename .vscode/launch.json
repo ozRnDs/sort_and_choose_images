@@ -32,7 +32,8 @@
             "request": "launch",
             "program": "${workspaceFolder}/dev/explore_pickle_file.py",
             "console": "integratedTerminal",
-            "justMyCode": true
+            "justMyCode": true,
+            "cwd": "${workspaceFolder}"
           }
     ]
 }
