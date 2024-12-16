@@ -13,7 +13,9 @@ class FaceProcessingRouter:
 
     def create_entry_points(self, app: FastAPI):
         @app.post(
-            "/scripts/face_detection/load_images", tags=["Admin", "Face Detection"]
+            "/scripts/face_detection/load_images",
+            tags=["Admin", "Face Detection"],
+            deprecated=True,
         )
         async def face_detect():
             raise exceptions.HTTPException(
@@ -77,7 +79,11 @@ class FaceProcessingRouter:
             time.sleep(0.3)
             return self._face_recognition_service.get_status()
 
-        @app.post("/script/face_detection/migrate_db", tags=["Face Detection"])
+        @app.post(
+            "/script/face_detection/migrate_db",
+            tags=["Face Detection"],
+            deprecated=True,
+        )
         def migrate_db():
             if self._face_recognition_service is None:
                 raise exceptions.HTTPException(

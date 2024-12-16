@@ -3,13 +3,18 @@ import os
 import pickle
 import time
 from enum import Enum
-from typing import List, Optional
+from functools import reduce  # For combining multiple conditions
+from operator import and_  # Logical AND operation for combining conditions
+from typing import Any, Dict, List, Optional
 
 import httpx
+import typing_extensions
 from loguru import logger
 from tinydb import Query, TinyDB
 from tinydb.middlewares import CachingMiddleware
 from tinydb.storages import JSONStorage
+
+from src.services.images_db_service import ImageDBService
 
 from ..utils.model_pydantic import ImageFaceRecognitionStatus, ImageMetadata
 from .faces_db_service import Face, FaceDBService
@@ -59,6 +64,7 @@ class FaceRecognitionService:
         base_url: str,
         redis_interface: RedisInterface,
         face_db_service: FaceDBService,
+        image_db_service: ImageDBService,
         progress_file="face_recognition_progress.pkl",
         db_path="face_recognition_progress.json",
     ):
@@ -72,6 +78,7 @@ class FaceRecognitionService:
         """
         self.redis_interface = redis_interface
         self._face_db_service = face_db_service
+        self._image_db_service = image_db_service
 
         self.status = ProcessStatus.IDLE
         self.progress = 0
@@ -87,8 +94,9 @@ class FaceRecognitionService:
         self._processing_task = None
 
         # Initialize TinyDB
-        self._db = TinyDB(db_path, storage=CachingMiddleware(JSONStorage))
+        self._legacy_db = TinyDB(db_path, storage=CachingMiddleware(JSONStorage))
 
+    @typing_extensions.deprecated("Progress is persistent using image_db_service")
     async def load_progress(self):
         """
         Loads progress data from TinyDB.
@@ -97,7 +105,7 @@ class FaceRecognitionService:
 
         # Load metadata
         progress_query = Query()
-        progress_data = self._db.get(progress_query.id == "progress_metadata")
+        progress_data = self._legacy_db.get(progress_query.id == "progress_metadata")
         if progress_data:
             self.processed_images_names = progress_data.get("processed_images", [])
             self.progress = progress_data.get("progress", 0)
@@ -105,9 +113,11 @@ class FaceRecognitionService:
 
         logger.info("Progress loaded successfully.")
 
+    @typing_extensions.deprecated("Use self._image_db_service methods instead")
     def get_images_count(self):
-        return self._db.count(Query().full_client_path.exists())
+        return self._legacy_db.count(Query().full_client_path.exists())
 
+    @typing_extensions.deprecated("Was already used in version 0.9.1")
     def migrate_pickle_to_tinydb(self):
         """
         Migrates data from the existing pickle file to the TinyDB database.
@@ -137,6 +147,7 @@ class FaceRecognitionService:
         except (pickle.PickleError, EOFError, FileNotFoundError) as e:
             logger.error(f"Failed to migrate data from pickle: {e}")
 
+    @typing_extensions.deprecated("Service loads images directly from image_db_service")
     def load_images(self, images: List[ImageMetadata]) -> int:
         """
         Loads the images to be processed.
@@ -150,11 +161,11 @@ class FaceRecognitionService:
                 image.face_recognition_status = ImageFaceRecognitionStatus.DONE
             if image.full_client_path in self.failed_images_names:
                 image.face_recognition_status = ImageFaceRecognitionStatus.FAILED
-            self._db.upsert(
+            self._legacy_db.upsert(
                 image.model_dump(), Query().full_client_path == image.full_client_path
             )
             loaded_images += 1
-        self._db.storage.flush()
+        self._legacy_db.storage.flush()
         return loaded_images
 
     def get_status(self) -> dict:
@@ -164,11 +175,21 @@ class FaceRecognitionService:
         Returns:
             tuple: (Status, progress percentage)
         """
-        images_in_queue = (
-            self.get_images_count()
-            - len(self.processed_images_names)
-            - len(self.failed_images_names)
+        images_in_queue = self._image_db_service.count_recognition_status(
+            image_recognition_status=ImageFaceRecognitionStatus.PENDING
+        ) + self._image_db_service.count_recognition_status(
+            image_recognition_status=ImageFaceRecognitionStatus.RETRY
         )
+        images_failed = self._image_db_service.count_recognition_status(
+            image_recognition_status=ImageFaceRecognitionStatus.FAILED
+        )
+        images_done = self._image_db_service.count_recognition_status(
+            image_recognition_status=ImageFaceRecognitionStatus.DONE
+        )
+        processed_images = images_done + images_failed
+        total_images = self._image_db_service.count_images()
+        progress = processed_images / total_images
+
         time_left = (
             images_in_queue * sum(self._process_time) / len(self._process_time)
             if len(self._process_time) > 0
@@ -177,11 +198,11 @@ class FaceRecognitionService:
 
         return {
             "status": self.status,
-            "progress": self.progress,
+            "images": total_images,
+            "processed_images": processed_images,
+            "failed_images": images_failed,
+            "progress": progress,
             "time_left_seconds": time_left,
-            "images": self.get_images_count(),
-            "processed_images": len(set(self.processed_images_names)),
-            "failed_images": len(set(self.failed_images_names)),
         }
 
     def stop(self):
@@ -193,6 +214,7 @@ class FaceRecognitionService:
             await asyncio.sleep(2)
 
     async def retry(self):
+        self._image_db_service.change_failed_images_to_retry()
         if not self._processing_task:
             self._processing_task = asyncio.create_task(self._astart(retry=True))
             await asyncio.sleep(2)
@@ -209,7 +231,6 @@ class FaceRecognitionService:
         try:
             while True:
                 if self._terminate:
-                    self.persist_progress()
                     self._terminate = False
                     break
 
@@ -229,7 +250,6 @@ class FaceRecognitionService:
                     full_client_path=image.full_client_path,
                     new_status=image_process_status,
                 )
-                self.persist_progress()
 
             self.status = (
                 ProcessStatus.DONE
@@ -238,11 +258,13 @@ class FaceRecognitionService:
             )
         except Exception as e:
             self.status = ProcessStatus.CRASHED
-            self.persist_progress()
+            logger.exception(e)
             logger.error(f"Error occurred during processing: {e}")
 
         finally:
-            self._db.storage.flush()
+            self._image_db_service.save_db()
+            self._face_db_service.save_db()
+            self._legacy_db.storage.flush()
             self._processing_task = None
 
     def _get_remaining_image(self, retry: bool) -> Optional[ImageMetadata]:
@@ -250,53 +272,31 @@ class FaceRecognitionService:
         Returns one image that still needs to be processed.
         """
         # logger.info("Fetching one remaining image with appropriate status.")
-        query = Query()
-        if not retry:
-            # Fetch one image where status is PENDING
-            result = self._db.get(
-                query.face_recognition_status
-                == ImageFaceRecognitionStatus.PENDING.value
-            )
-        else:
-            # Fetch one image where status is PENDING or FAILED
-            result = self._db.get(
-                (
-                    query.face_recognition_status
-                    == ImageFaceRecognitionStatus.PENDING.value
-                )
-                | (
-                    query.face_recognition_status
-                    == ImageFaceRecognitionStatus.RETRY.value
-                )
-            )
-
+        result = self._get_remaining_images(retry=retry)
         # Return the result as an ImageMetadata object or None if no match
-        return ImageMetadata(**result) if result else None
+        return result[0] if result else None
 
     def _get_remaining_images(self, retry: bool) -> List[ImageMetadata]:
         """
         Returns the list of images that still need to be processed.
         """
         logger.info("Fetching remaining images with appropriate status.")
-        query = Query()
         if not retry:
             # Fetch images where status is PENDING
-            result = self._db.search(
-                query.face_recognition_status
-                == ImageFaceRecognitionStatus.PENDING.value
+            result = self._image_db_service.get_images(
+                {"face_recognition_status": ImageFaceRecognitionStatus.PENDING}
             )
         else:
             # Fetch images where status is PENDING or FAILED
-            result = self._db.search(
-                (query.face_recognition_status != ImageFaceRecognitionStatus.DONE.value)
-                | (
-                    query.face_recognition_status
-                    == ImageFaceRecognitionStatus.FAILED.value
-                )
+            result_pending = self._image_db_service.get_images(
+                {"face_recognition_status": ImageFaceRecognitionStatus.PENDING}
             )
-
+            result_retry = self._image_db_service.get_images(
+                {"face_recognition_status": ImageFaceRecognitionStatus.RETRY}
+            )
+            result = result_pending + result_retry
         # Convert the results back to ImageMetadata objects
-        return [ImageMetadata(**doc) for doc in result]
+        return result
 
     async def _process_image(self, image: ImageMetadata) -> ImageFaceRecognitionStatus:
         """
@@ -448,21 +448,14 @@ class FaceRecognitionService:
         """
         logger.info(f"Updating status for image: {full_client_path} to {new_status}.")
 
-        query = Query()
-        updated_count = self._db.update(
-            {"face_recognition_status": new_status.value},
-            query.full_client_path == full_client_path,
+        image = self._image_db_service.get_images(
+            {"full_client_path": full_client_path}
         )
+        if image:
+            image[0].face_recognition_status = new_status
+            self._image_db_service.add_image(image[0])
 
-        if updated_count[0] > 0:
-            logger.info(f"Successfully updated status for image: {full_client_path}.")
-            return True
-        else:
-            logger.warning(
-                f"Failed to update status for image: {full_client_path}. Image not found."
-            )
-            return False
-
+    @typing_extensions.deprecated("Progress is persistent using image_db_service")
     def persist_progress(self):
         """
         Persists the current progress to TinyDB incrementally.
@@ -471,7 +464,7 @@ class FaceRecognitionService:
 
         # Save metadata as a unique document
         progress_query = Query()
-        self._db.upsert(
+        self._legacy_db.upsert(
             {
                 "id": "progress_metadata",  # Unique ID for progress metadata
                 "processed_images": self.processed_images_names,
@@ -481,3 +474,41 @@ class FaceRecognitionService:
             progress_query.id == "progress_metadata",
         )
         # # Save each image as a unique document
+
+    def get_image_status(self, image_full_path: str) -> ImageFaceRecognitionStatus:
+        image = self._get_images({"full_client_path": image_full_path})
+        if image:
+            return image[0].face_recognition_status
+        return ImageFaceRecognitionStatus.PENDING
+
+    def _get_images(
+        self, query: Optional[Dict[str, Any]] = None
+    ) -> List[ImageMetadata]:
+        """
+        Retrieves image documents from the database.
+
+        Args:
+            query (dict, optional): Query conditions for filtering the results.
+                                    If None, retrieves all documents.
+
+        Returns:
+            list: List of ImageMetadata objects matching the query.
+        """
+        if query:
+            conditions = []
+            for key, value in query.items():
+                if isinstance(value, dict) and "$in" in value:
+                    # Handle '$in' operator
+                    conditions.append(Query()[key].one_of(value["$in"]))
+                else:
+                    # Default equality
+                    conditions.append(Query()[key] == value)
+            if len(conditions) == 1:
+                results = self._legacy_db.search(conditions[0])
+            else:
+                results = self._legacy_db.search(reduce(and_, conditions))
+            for cond in conditions[1:]:
+                results = [doc for doc in results if cond(doc)]
+            return [ImageMetadata(**doc) for doc in results]
+        else:
+            return [ImageMetadata(**doc) for doc in self._legacy_db.all()]

@@ -43,6 +43,13 @@ class FaceDBService:
         self.db = TinyDB(self.db_path, storage=CachingMiddleware(JSONStorage))
         self.faces_table = self.db.table("faces")
 
+    def save_db(self):
+        logger.info("Saving DB")
+        self.db.storage.flush()
+
+    def __del__(self):
+        self.save_db()
+
     def add_face(self, face: Face, flush: bool = False) -> int:
         """
         Adds a new face document to the database.
