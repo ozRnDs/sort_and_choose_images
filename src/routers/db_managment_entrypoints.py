@@ -196,3 +196,35 @@ class DbRouter:
 
         self._image_db_service.save_db()
         self._groups_db_service.save_db()
+
+    async def fix_missing_classification_for_images(self):
+        fixing_dictionary = {}
+        fixing_dictionary[
+            "/images/2020/whatsapp/IMG-20200229-WA0019.jpg"
+        ] = "Family Gatherings"
+        fixing_dictionary[
+            "/images/2020/whatsapp/IMG-20200229-WA0021.jpg"
+        ] = "Family Gatherings"
+        fixing_dictionary[
+            "/images/2020/whatsapp/IMG-20200229-WA0022.jpg"
+        ] = "Family Gatherings"
+        fixing_dictionary[
+            "/images/2021/whatsapp/sent/IMG-20200509-WA0007.jpg"
+        ] = "Family Trips"
+        fixing_dictionary[
+            "/images/2020/whatsapp/IMG-20200731-WA0014.jpg"
+        ] = "Family Trips"
+        fixing_dictionary["/images/2020/whatsapp/IMG-20200731-WA0015.jpg"] = "Nature"
+        fixing_dictionary[
+            "/images/2020/whatsapp/IMG-20201121-WA0025.jpg"
+        ] = "Family Trips"
+        fixing_dictionary[
+            "/images/2020/whatsapp/IMG-20201212-WA0009.jpg"
+        ] = "Family Gatherings"
+        images = self._image_db_service.get_images(
+            query={"full_client_path": {"$in": list(fixing_dictionary.keys())}}
+        )
+        for image in images:
+            image.classification = fixing_dictionary[image.full_client_path]
+            self._image_db_service.add_image(image)
+        self._image_db_service.save_db()
