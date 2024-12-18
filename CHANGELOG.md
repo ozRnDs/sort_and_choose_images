@@ -1,3 +1,9 @@
+## 0.13.1 (2024-12-18)
+
+### Fix
+
+- **fastapi_server**: Disable migrations
+
 ## 0.13.0 (2024-12-15)
 
 ### Feat
