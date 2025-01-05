@@ -1,3 +1,4 @@
+import asyncio
 from typing import List
 
 from fastapi import FastAPI, Query
@@ -29,6 +30,7 @@ class SimilarityRouter:
         self._redis_service = redis_service
         self._face_db_service = face_db_service
         self._group_db_service = group_db_service
+        self._calculate_task: asyncio.Task = None
         self._similarity_calculation_status: SimilarityStatus = None
 
     def create_entry_points(self, app: FastAPI):
@@ -58,6 +60,27 @@ class SimilarityRouter:
             )
 
             return response_content
+
+        @app.post(
+            "/similarity/groups/calculate",
+            tags=["Similarities"],
+            response_model=SimilarityStatus,
+        )
+        async def calculate_groups_with_ron() -> SimilarityStatus:
+            if self._calculate_task is None or self._calculate_task.done():
+                self._calculate_task = asyncio.create_task(
+                    asyncio.to_thread(self.calculate_groups_with_target)
+                )
+                await asyncio.sleep(0.1)
+            return self._similarity_calculation_status
+
+        @app.get(
+            "/similarity/groups/calculate/status",
+            tags=["Similarities"],
+            response_model=SimilarityStatus,
+        )
+        def get_similarity_calculation_status():
+            return self._similarity_calculation_status
 
     def calculate_groups_with_target(self, threshold=0.7) -> List[GroupMetadata]:
         ron_faces_ids = [
