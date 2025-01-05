@@ -348,26 +348,29 @@ class ImagesProcessingV2:
 
         return group_name
 
-    # async def fix_whatsapp_images_group(self):
-    #     all_images = self._image_db_service.get_images()
+    async def fix_whatsapp_images_group(self):
+        all_images = self._image_db_service.get_images()
 
-    #     for image in tqdm(all_images):
+        for image in tqdm(all_images):
+            whatsapp_date = self._get_whatsapp_image_date(image.name)
+            if not whatsapp_date:
+                continue
+            image.creationDate = whatsapp_date
+            new_group_name = self._determine_group(image)
+            if new_group_name == image.group_name:
+                continue
+            self._group_db_service.add_image_to_group(
+                new_group_name, image.full_client_path
+            )
+            self._group_db_service.remove_image_from_group(
+                image.group_name, image.full_client_path
+            )
+            image.group_name = new_group_name
+            self._image_db_service.add_image(image=image)
+            if image.ron_in_image is True or image.classification != "None":
+                new_group = self._group_db_service.get_group(group_name=new_group_name)
+                new_group.selection = "interesting"
+                self._group_db_service.add_group(new_group)
 
-    #         whatsapp_date = self._get_whatsapp_image_date(image.name)
-    #         if not whatsapp_date:
-    #             continue
-    #         image.creationDate=whatsapp_date
-    #         new_group_name = self._determine_group(image)
-    #         self._group_db_service.add_image_to_group(
-    #                             new_group_name, image.full_client_path
-    #                         )
-    #         self._group_db_service.remove_image_from_group(image.group_name,image.full_client_path)
-    #         image.group_name = new_group_name
-    #         self._image_db_service.add_image(image=image)
-    #         if image.ron_in_image==True or image.classification!="None":
-    #             new_group = self._group_db_service.get_group(group_name=new_group_name)
-    #             new_group.selection = "interesting"
-    #             self._group_db_service.add_group(new_group)
-
-    #     self._group_db_service.save_db()
-    #     self._image_db_service.save_db()
+        self._group_db_service.save_db()
+        self._image_db_service.save_db()
