@@ -1,3 +1,23 @@
+## 0.14.0 (2025-01-05)
+
+### Feat
+
+- **fastapi_server**: Add fix_whatsapp_images_group to the migration tasks
+
+### Fix
+
+- **fastapi_server**: Don't run similarity calculation if the router is false
+- **ImagesProcessingV2**: Migrate whatsapp images to their real groups
+- **ImageProcessingV2**: Improve the image_metadata and groupings
+- **DbRouter**: Add fix_missing_classification_for_images
+- **fastapi_server.py**: Fix missing classification for images on startup
+- **ImageDBService**: Add images to db based on full_client_path field and not name
+
+### Refactor
+
+- **explore_pickle_file**: Search for duplicate images, that appear in more that one group
+- **fastapi_server**: Update migration version to 0.13.1
+
 ## 0.13.1 (2024-12-18)
 
 ### Fix
