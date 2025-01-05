@@ -1,3 +1,9 @@
+## 0.14.1 (2025-01-05)
+
+### Fix
+
+- **fastapi_server**: Update the DB's file names
+
 ## 0.14.0 (2025-01-05)
 
 ### Feat
