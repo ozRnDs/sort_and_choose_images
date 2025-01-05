@@ -81,7 +81,9 @@ class ImageDBService:
         Returns:
             int: The ID of the inserted or updated document.
         """
-        response = self.db.upsert(image.model_dump(), Query().name == image.name)
+        response = self.db.upsert(
+            image.model_dump(), Query().full_client_path == image.full_client_path
+        )
         if flush:
             self.db.storage.flush()
         return response

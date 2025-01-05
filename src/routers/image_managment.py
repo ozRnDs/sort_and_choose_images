@@ -193,7 +193,7 @@ class ImagesProcessingV2:
 
     def create_entry_points(self, app: FastAPI):
         @app.get("/v2/load_images", tags=["Admin"])
-        async def load_images():
+        async def load_images(rewrite: bool = False):
             # Get the total number of files to process for progress tracking
             total_files = sum(
                 len(files)
@@ -226,14 +226,23 @@ class ImagesProcessingV2:
                             )
 
                             if existing_images:
-                                print(
-                                    f"Image {image_metadata.name} already exists in the database."
-                                )
                                 pbar.update(1)  # Update progress even for skipped files
-                                continue  # Skip processing if image exists
+                                if rewrite:
+                                    image_metadata.classification = existing_images[
+                                        0
+                                    ].classification
+                                    image_metadata.face_recognition_status = (
+                                        existing_images[0].face_recognition_status
+                                    )
+                                    image_metadata.ron_in_image = existing_images[
+                                        0
+                                    ].ron_in_image
+                                else:
+                                    continue  # Skip processing if image exists
 
                             # Determine the group for the image
                             group_name = self._determine_group(image_metadata)
+                            image_metadata.group_name = group_name
 
                             # Add image to group
                             self._group_db_service.add_image_to_group(
@@ -280,10 +289,11 @@ class ImagesProcessingV2:
             )
 
         # Check for WhatsApp-style image naming
-        if camera == "Unknown":
-            whatsapp_pattern = r"IMG-\d{8}-WA\d+"
-            if re.match(whatsapp_pattern, file):
+        if camera == "Unknown" or "whatsapp":
+            whatsapp_date = self._get_whatsapp_image_date(file)
+            if whatsapp_date:
                 camera = "whatsapp"
+                creation_date = whatsapp_date
 
         return ImageMetadata(
             name=file,
@@ -293,6 +303,20 @@ class ImagesProcessingV2:
             camera=camera,
             creationDate=creation_date,
         )
+
+    def _get_whatsapp_image_date(self, image_name: str):
+        whatsapp_pattern = r"IMG-(\d{8})-WA\d+"
+        match = re.match(whatsapp_pattern, image_name)
+        if match:
+            # Extract the date from the file name
+            file_date = match.group(1)  # The "20201212" part
+
+            # Convert the file date into a datetime object
+            creation_date = datetime.strptime(file_date, "%Y%m%d").strftime(
+                "%Y:%m:%d %H:%M:%S"
+            )
+            return creation_date
+        return None
 
     def _determine_group(self, image_metadata: ImageMetadata) -> str:
         """
@@ -323,3 +347,30 @@ class ImagesProcessingV2:
             self._group_db_service.add_group(group_metadata, flush=True)
 
         return group_name
+
+    async def fix_whatsapp_images_group(self):
+        all_images = self._image_db_service.get_images()
+
+        for image in tqdm(all_images):
+            whatsapp_date = self._get_whatsapp_image_date(image.name)
+            if not whatsapp_date:
+                continue
+            image.creationDate = whatsapp_date
+            new_group_name = self._determine_group(image)
+            if new_group_name == image.group_name:
+                continue
+            self._group_db_service.add_image_to_group(
+                new_group_name, image.full_client_path
+            )
+            self._group_db_service.remove_image_from_group(
+                image.group_name, image.full_client_path
+            )
+            image.group_name = new_group_name
+            self._image_db_service.add_image(image=image)
+            if image.ron_in_image is True or image.classification != "None":
+                new_group = self._group_db_service.get_group(group_name=new_group_name)
+                new_group.selection = "interesting"
+                self._group_db_service.add_group(new_group)
+
+        self._group_db_service.save_db()
+        self._image_db_service.save_db()

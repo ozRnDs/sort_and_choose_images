@@ -89,12 +89,12 @@ try:
     )
     face_managment_router.create_entry_points(app)
 
-    similairty_router = similarity_entrypoints.SimilarityRouter(
+    similarity_router = similarity_entrypoints.SimilarityRouter(
         face_db_service=face_db_service,
         redis_service=redis_service,
         group_db_service=group_db_service,
     )
-    similairty_router.create_entry_points(app)
+    similarity_router.create_entry_points(app)
 
     db_router = db_managment_entrypoints.DbRouter(
         image_db_path=IMAGE_DB,
@@ -142,7 +142,7 @@ async def perform_migration():
     pickle_file = Path(IMAGE_DB)
     if not (pickle_file.exists() and group_db.exists()):
         return
-    backup_path = Path("/data") / "backup-0.11.0"
+    backup_path = Path("/data") / "backup-0.13.1"
     if backup_path.exists():
         return
     logger.info("Updating software databases...")
@@ -161,18 +161,23 @@ async def perform_migration():
     shutil.copy(group_db, backup_group_path)
     logger.info("Starting db migration...")
     # Perform database migration
-    await db_router.update_group_field_in_images()
+    logger.info("Step 1: Fix classification for lost images")
+    await db_router.fix_missing_classification_for_images()
+    logger.info("Step 2: Regroup whatsapp images")
+    await image_router.fix_whatsapp_images_group()
     logger.info("Finished Migration")
 
 
 def start_up_tasks():
     logger.info("Starting Similar Groups Calculation")
-    similairty_router.calculate_groups_with_target()
+    if not similarity_router:
+        logger.error("Couldn't initialize similarity router")
+    similarity_router.calculate_groups_with_target()
     logger.info("End Similar Groups Calculation")
 
 
 async def main():
-    # await perform_migration()
+    await perform_migration()
     # start_up_tasks()
 
     task_list = []

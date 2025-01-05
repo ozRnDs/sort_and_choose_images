@@ -164,9 +164,9 @@ class GroupDBService:
         if group_data:
             group = GroupMetadata(**group_data)
             if image_path in group.list_of_images:
-                logger.info(
-                    f"Image path '{image_path}' already exists in group '{group_name}'."
-                )
+                # logger.info(
+                #     f"Image path '{image_path}' already exists in group '{group_name}'."
+                # )
                 return False
             group.list_of_images.append(image_path)
             if group.selection == "interesting":
