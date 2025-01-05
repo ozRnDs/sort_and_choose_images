@@ -37,8 +37,8 @@ STATIC_FOLDER_LOCATION = "src/static"
 BASE_PATH = "/images"
 
 FACE_DB = "/data/face_db.json"
-GROUP_DB = "/data/group_db_remote.json"
-IMAGE_DB = "/data/image_db_remote.json"
+GROUP_DB = "/data/group_db.json"
+IMAGE_DB = "/data/image_db.json"
 
 redis_service = None
 face_recognition_service = None
