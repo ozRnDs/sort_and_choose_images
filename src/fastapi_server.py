@@ -108,6 +108,7 @@ try:
     db_router.create_entry_points(app)
 
 except Exception as err:
+    logger.exception(err)
     logger.error(f"Failed to initialize redis or face recognition service: {err}")
 
 # Serve static files
@@ -174,8 +175,8 @@ def start_up_tasks():
 
 
 async def main():
-    await perform_migration()
-    start_up_tasks()
+    # await perform_migration()
+    # start_up_tasks()
 
     task_list = []
 
