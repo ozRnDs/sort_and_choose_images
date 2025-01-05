@@ -67,11 +67,8 @@ class SimilarityRouter:
             response_model=SimilarityStatus,
         )
         async def calculate_groups_with_ron() -> SimilarityStatus:
-            if self._calculate_task is None or self._calculate_task.done():
-                self._calculate_task = asyncio.create_task(
-                    asyncio.to_thread(self.calculate_groups_with_target)
-                )
-                await asyncio.sleep(0.1)
+            await self.start_calculation_process()
+            await asyncio.sleep(0.1)
             return self._similarity_calculation_status
 
         @app.get(
@@ -81,6 +78,12 @@ class SimilarityRouter:
         )
         def get_similarity_calculation_status():
             return self._similarity_calculation_status
+
+    async def start_calculation_process(self):
+        if self._calculate_task is None or self._calculate_task.done():
+            self._calculate_task = asyncio.create_task(
+                asyncio.to_thread(self.calculate_groups_with_target)
+            )
 
     def calculate_groups_with_target(self, threshold=0.7) -> List[GroupMetadata]:
         ron_faces_ids = [
