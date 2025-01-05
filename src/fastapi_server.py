@@ -165,17 +165,16 @@ async def perform_migration():
     # logger.info("Finished Migration")
 
 
-def start_up_tasks():
+async def start_up_tasks():
     logger.info("Starting Similar Groups Calculation")
     if not similarity_router:
         logger.error("Couldn't initialize similarity router")
-    similarity_router.calculate_groups_with_target()
-    logger.info("End Similar Groups Calculation")
+    await similarity_router.start_calculation_process()
 
 
 async def main():
     await perform_migration()
-    # start_up_tasks()
+    await start_up_tasks()
 
     task_list = []
 
