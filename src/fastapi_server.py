@@ -163,8 +163,8 @@ async def perform_migration():
     # Perform database migration
     logger.info("Step 1: Fix classification for lost images")
     await db_router.fix_missing_classification_for_images()
-    # logger.info("Step 2: Regroup whatsapp images")
-    # await image_router.fix_whatsapp_images_group()
+    logger.info("Step 2: Regroup whatsapp images")
+    await image_router.fix_whatsapp_images_group()
     logger.info("Finished Migration")
 
 
