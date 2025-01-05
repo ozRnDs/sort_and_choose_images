@@ -1,3 +1,19 @@
+## 0.15.0 (2025-01-05)
+
+### Feat
+
+- **SimilarityRouter**: Add entrypoints to start the calculation process and to monitor it
+- **SimilarityStatus**: Add object to the calculation process
+
+### Fix
+
+- **start_up_tasks**: Update start_up_tasks to run similarity calculations in the background
+
+### Refactor
+
+- **fastapi_server**: Disable migration process and update backup location
+- **SimilarityRouter**: Create separate function to start_calculation_process
+
 ## 0.14.1 (2025-01-05)
 
 ### Fix
