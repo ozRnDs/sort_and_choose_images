@@ -89,12 +89,12 @@ try:
     )
     face_managment_router.create_entry_points(app)
 
-    similairty_router = similarity_entrypoints.SimilarityRouter(
+    similarity_router = similarity_entrypoints.SimilarityRouter(
         face_db_service=face_db_service,
         redis_service=redis_service,
         group_db_service=group_db_service,
     )
-    similairty_router.create_entry_points(app)
+    similarity_router.create_entry_points(app)
 
     db_router = db_managment_entrypoints.DbRouter(
         image_db_path=IMAGE_DB,
@@ -170,7 +170,9 @@ async def perform_migration():
 
 def start_up_tasks():
     logger.info("Starting Similar Groups Calculation")
-    similairty_router.calculate_groups_with_target()
+    if not similarity_router:
+        logger.error("Couldn't initialize similarity router")
+    similarity_router.calculate_groups_with_target()
     logger.info("End Similar Groups Calculation")
 
 
