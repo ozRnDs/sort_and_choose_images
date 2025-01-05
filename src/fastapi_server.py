@@ -142,7 +142,7 @@ async def perform_migration():
     pickle_file = Path(IMAGE_DB)
     if not (pickle_file.exists() and group_db.exists()):
         return
-    backup_path = Path("/data") / "backup-0.13.0"
+    backup_path = Path("/data") / "backup-0.13.1"
     if backup_path.exists():
         return
     logger.info("Updating software databases...")
@@ -175,7 +175,7 @@ def start_up_tasks():
 
 
 async def main():
-    # await perform_migration()
+    await perform_migration()
     # start_up_tasks()
 
     task_list = []
