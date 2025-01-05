@@ -62,6 +62,7 @@ groups_router.create_entry_points(app)
 
 image_router = image_managment.ImagesProcessingV2(
     images_base_path=BASE_PATH,
+    data_base_path="/data",
     group_db_service=group_db_service,
     image_db_service=image_db_service,
 )

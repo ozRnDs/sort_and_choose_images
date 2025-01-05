@@ -1,19 +1,38 @@
 import os
 import pickle
 import re
+import shutil
 from collections import defaultdict
 from datetime import datetime
+from pathlib import Path
 from typing import Dict, List
 
 import exifread
 from fastapi import FastAPI, exceptions, status
 from fastapi.responses import JSONResponse
+from loguru import logger
+from pydantic import BaseModel, Field
 from tqdm import tqdm
 
 from src.services.groups_db import sort_and_save_groups
 from src.services.groups_db_service import GroupDBService
 from src.services.images_db_service import ImageDBService
 from src.utils.model_pydantic import GroupMetadata, GroupMetadata_V1, ImageMetadata
+
+
+class ClassificationMetadata(BaseModel):
+    classification: str
+    number_of_copied_images: int = 0
+
+    def directory_name(self):
+        return self.classification.lower().replace(" ", "_")
+
+
+class CopyImagesStatus(BaseModel):
+    running: bool = True
+    dictionary_of_classification: Dict[str, ClassificationMetadata] = Field(
+        default_factory=dict
+    )
 
 
 class ImagesProcessingV1:
@@ -184,9 +203,11 @@ class ImagesProcessingV2:
     def __init__(
         self,
         images_base_path: str,
+        data_base_path: str,
         group_db_service: GroupDBService,
         image_db_service: ImageDBService,
     ):
+        self._data_base_path = Path(data_base_path)
         self._image_base_path = images_base_path
         self._group_db_service = group_db_service
         self._image_db_service = image_db_service
@@ -263,6 +284,68 @@ class ImagesProcessingV2:
                 content={"message": "Images processed successfully"},
                 status_code=200,
             )
+
+        @app.post(
+            "/v2/copy_images",
+            tags=["Admin"],
+            response_model=List[ClassificationMetadata],
+        )
+        def copy_images() -> List[ClassificationMetadata]:
+            return self.copy_images()
+
+    def copy_images(self) -> List[ClassificationMetadata]:
+        base_location = self._data_base_path / "tagged_images"
+
+        list_of_categories = [
+            "Family Gatherings",
+            "Family Trips",
+            "Nature",
+            "Historical",
+            "Archaeology",
+        ]
+        self._create_folders_for_categories(
+            base_location, list_of_categories=list_of_categories
+        )
+
+        tagged_images = self._image_db_service.get_images(
+            query={"classification": {"$in": list_of_categories}}
+        )
+
+        categories_dictionary: Dict[str, ClassificationMetadata] = {}
+
+        for image in tqdm(tagged_images):
+            if image.classification not in categories_dictionary:
+                categories_dictionary[image.classification] = ClassificationMetadata(
+                    classification=image.classification
+                )
+            image_target_path = (
+                base_location
+                / categories_dictionary[image.classification].directory_name()
+                / image.name
+            )
+            if image_target_path.exists():
+                image_target_path = image_target_path.with_stem(
+                    f"{image_target_path.stem}(2)"
+                )
+            try:
+                shutil.copy(src=image.full_client_path, dst=image_target_path)
+                logger.info(f"Copy {image.full_client_path} to {image_target_path}")
+                categories_dictionary[image.classification].number_of_copied_images += 1
+            except Exception as err:
+                logger.error(
+                    f"Failed to copy the image {image.full_client_path}: {str(err)}"
+                )
+        return list(categories_dictionary.values())
+
+    def _create_folders_for_categories(
+        self, base_location: Path, list_of_categories: List[str]
+    ):
+        if not base_location.exists():
+            self._data_base_path.mkdir(parents=True, exist_ok=True)
+        for category in list_of_categories:
+            category_path = base_location / category.lower().replace(" ", "_")
+            if not category_path.exists():
+                category_path.mkdir(parents=True, exist_ok=True)
 
     def extract_image_metadata(self, file: str, root: str) -> ImageMetadata:
         full_path = os.path.join(root, file)

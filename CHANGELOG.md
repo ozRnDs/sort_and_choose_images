@@ -1,3 +1,13 @@
+## 0.16.0 (2025-01-05)
+
+### Feat
+
+- **ImagesProcessingV2**: Create an entrypoint to copy tagged images
+
+### Refactor
+
+- **fastapi_server**: Pass /data directory to ImagesProcessingV2 as data_base_path
+
 ## 0.15.0 (2025-01-05)
 
 ### Feat
