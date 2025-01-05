@@ -142,7 +142,7 @@ async def perform_migration():
     pickle_file = Path(IMAGE_DB)
     if not (pickle_file.exists() and group_db.exists()):
         return
-    backup_path = Path("/data") / "backup-0.13.1"
+    backup_path = Path("/data") / "backup-0.14.1"
     if backup_path.exists():
         return
     logger.info("Updating software databases...")
@@ -159,13 +159,10 @@ async def perform_migration():
 
     # Copy GROUP_DB to backup_group_path
     shutil.copy(group_db, backup_group_path)
-    logger.info("Starting db migration...")
+    # logger.info("Starting db migration...")
     # Perform database migration
-    logger.info("Step 1: Fix classification for lost images")
-    await db_router.fix_missing_classification_for_images()
-    logger.info("Step 2: Regroup whatsapp images")
-    await image_router.fix_whatsapp_images_group()
-    logger.info("Finished Migration")
+
+    # logger.info("Finished Migration")
 
 
 def start_up_tasks():
