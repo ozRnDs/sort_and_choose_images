@@ -22,7 +22,7 @@ def video_service_fixture(group_db_service_fixture, video_db_service_fixture):
     return VideosProcessing(
         videos_base_path="/images",
         group_db_service=group_db_service_fixture,
-        video_db_service=video_db_service_fixture,
+        media_db_service=video_db_service_fixture,
     )
 
 
