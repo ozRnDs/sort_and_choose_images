@@ -5,6 +5,11 @@ from uuid import uuid4
 from pydantic import BaseModel, Field
 
 
+class MediaType(str, Enum):
+    VIDEO = "video"
+    IMAGE = "image"
+
+
 class ImageFaceRecognitionStatus(str, Enum):
     PENDING = "pending"
     FAILED = "failed"
@@ -13,6 +18,7 @@ class ImageFaceRecognitionStatus(str, Enum):
 
 
 class ImageMetadata(BaseModel):
+    media_type: Optional[MediaType] = Field(default=MediaType.IMAGE)
     name: str
     full_client_path: str
     size: int
@@ -29,6 +35,7 @@ class ImageMetadata(BaseModel):
 
 
 class VideoMetadata(BaseModel):
+    media_type: MediaType = MediaType.VIDEO
     name: str
     thumbnail_full_path: str
     full_client_path: str
