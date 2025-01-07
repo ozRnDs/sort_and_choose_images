@@ -28,15 +28,34 @@ class ImageMetadata(BaseModel):
     group_name: Optional[str] = "Unknown"
 
 
+class VideoMetadata(BaseModel):
+    name: str
+    thumbnail_full_path: str
+    full_client_path: str
+    size: int
+    duration_seconds: float
+    type: str
+    camera: Optional[str] = "Unknown"
+    location: Optional[str] = "Unknown"
+    creationDate: Optional[str] = "Unknown"
+    classification: str = "None"
+    ron_in_image: bool = False
+    face_recognition_status: Optional[
+        ImageFaceRecognitionStatus
+    ] = ImageFaceRecognitionStatus.PENDING
+    group_name: Optional[str] = "Unknown"
+
+
 class GroupMetadata(BaseModel):
     group_name: str
     group_thumbnail_url: str
     list_of_images: List[str]
+    list_of_videos: Optional[List[str]] = Field(default_factory=list)
     selection: str = (
         "unprocessed"  # Can be "unprocessed", "interesting", or "not interesting"
     )
     ron_in_group: Optional[bool] = False
-    has_new_image: Optional[bool] = False
+    has_new_media: Optional[bool] = False
 
     @property
     def image_count(self):
