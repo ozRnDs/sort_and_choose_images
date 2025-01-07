@@ -11,6 +11,7 @@ from loguru import logger
 from tqdm import tqdm
 
 from src.services.groups_db_service import GroupDBService
+from src.services.images_db_service import ImageDBService
 from src.utils.model_pydantic import GroupMetadata, VideoMetadata
 
 # from src.services.video_db_service import VideoDBService  # Example import
@@ -21,7 +22,7 @@ class VideosProcessing:
         self,
         videos_base_path: Path,
         group_db_service: GroupDBService,
-        video_db_service,  # For example: VideoDBService
+        media_db_service: ImageDBService,
     ):
         """
         Args:
@@ -31,7 +32,7 @@ class VideosProcessing:
         """
         self._videos_base_path = videos_base_path
         self._group_db_service = group_db_service
-        self._video_db_service = video_db_service
+        self._media_db_service = media_db_service
 
     def create_entry_points(self, app: FastAPI):
         @app.get("/v2/load_videos", tags=["Admin"])
@@ -63,7 +64,7 @@ class VideosProcessing:
                             )
 
                             # Check if the video is already in the database
-                            existing_videos = self._video_db_service.get_videos(
+                            existing_videos = self._media_db_service.get_videos(
                                 query={
                                     "full_client_path": video_metadata.full_client_path
                                 }
@@ -96,14 +97,14 @@ class VideosProcessing:
                             )
 
                             # 6. Add or update the video in the DB
-                            self._video_db_service.add_video(video_metadata)
+                            self._media_db_service.add_video(video_metadata)
 
                             # Update the progress bar
                             pbar.update(1)
 
             # 7. Save the databases
             self._group_db_service.save_db()
-            self._video_db_service.save_db()
+            self._media_db_service.save_db()
 
             return JSONResponse(
                 content={"message": "Videos processed successfully"},
