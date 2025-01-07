@@ -170,7 +170,36 @@ class GroupDBService:
                 return False
             group.list_of_images.append(image_path)
             if group.selection == "interesting":
-                group.has_new_image = True
+                group.has_new_media = True
+            self.add_group(group, flush=flush)
+            return True
+        return False
+
+    def add_video_to_group(
+        self, group_name: str, video_full_path: str, flush: bool = False
+    ) -> bool:
+        """
+        Adds an image path to a group's list of images.
+
+        Args:
+            group_name (str): The name of the group to update.
+            video_full_path (str): The full path of the image to add.
+            flush (bool): Whether to flush the database storage after the operation.
+
+        Returns:
+            bool: True if the image path was successfully added, False otherwise.
+        """
+        group_data = self.db.get(Query().group_name == group_name)
+        if group_data:
+            group = GroupMetadata(**group_data)
+            if video_full_path in group.list_of_videos:
+                # logger.info(
+                #     f"Image path '{image_path}' already exists in group '{group_name}'."
+                # )
+                return False
+            group.list_of_videos.append(video_full_path)
+            if group.selection == "interesting":
+                group.has_new_media = True
             self.add_group(group, flush=flush)
             return True
         return False
@@ -204,7 +233,7 @@ class GroupDBService:
         if group_data:
             group = GroupMetadata(**group_data)
             if group.selection == "interesting":
-                group.has_new_image = False
+                group.has_new_media = False
             self.add_group(group)
 
     def save_db(self):
