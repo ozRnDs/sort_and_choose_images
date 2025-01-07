@@ -372,7 +372,7 @@ class ImagesProcessingV2:
             )
 
         # Check for WhatsApp-style image naming
-        if camera == "Unknown" or "whatsapp":
+        if camera.lower() == "unknown" or "whatsapp":
             whatsapp_date = self._get_whatsapp_image_date(file)
             if whatsapp_date:
                 camera = "whatsapp"
