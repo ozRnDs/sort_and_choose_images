@@ -131,7 +131,10 @@ class ImageDBService:
                 else:
                     # Default equality
                     conditions.append(Query()[key] == value)
-            conditions.append(Query()["media_type"] != MediaType.VIDEO.value)
+            conditions.append(
+                (Query()["media_type"] != MediaType.VIDEO.value)
+                | ~(Query()["media_type"].exists())
+            )
             if len(conditions) == 1:
                 results = self.db.search(conditions[0])
             else:
