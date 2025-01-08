@@ -45,7 +45,7 @@ class VideosProcessing:
             # 1. Count total video files for progress tracking
             valid_extensions = (".mp4", ".mov", ".avi", ".mkv", ".flv", ".wmv")
             total_files = sum(
-                sum(1 for file in files if file.lower().endswith(".mp4"))
+                sum(1 for file in files if file.lower().endswith(valid_extensions))
                 for _, _, files in os.walk(self._videos_base_path)
             )
 
@@ -58,21 +58,18 @@ class VideosProcessing:
                     for file in files:
                         if file.lower().endswith(valid_extensions):
                             # Extract metadata (including thumbnail creation)
-                            video_metadata = await self.extract_video_metadata(
-                                file, root
-                            )
+                            full_path = Path(root) / file
 
                             # Check if the video is already in the database
                             existing_videos = self._media_db_service.get_videos(
-                                query={
-                                    "full_client_path": video_metadata.full_client_path
-                                }
+                                query={"full_client_path": str(full_path)}
                             )
-
+                            video_metadata = None
                             if existing_videos:
-                                # Update progress for each file encountered
-                                pbar.update(1)
                                 if rewrite:
+                                    video_metadata = await self.extract_video_metadata(
+                                        file, root
+                                    )
                                     # Overwrite certain fields if rewriting
                                     old_video = existing_videos[0]
                                     video_metadata.classification = (
@@ -83,9 +80,15 @@ class VideosProcessing:
                                         old_video.face_recognition_status
                                     )
                                 else:
+                                    # Update progress for each file encountered
+                                    pbar.update(1)
                                     # Skip if we are not rewriting
                                     continue
 
+                            if video_metadata is None:
+                                video_metadata = await self.extract_video_metadata(
+                                    file, root
+                                )
                             # 4. Determine a group name (e.g., based on creation date)
                             group_name = self._determine_group(video_metadata)
                             video_metadata.group_name = group_name
@@ -148,12 +151,8 @@ class VideosProcessing:
         # 6. Return a VideoMetadata object
         return VideoMetadata(
             name=file_name,
-            thumbnail_full_path=str(thumbnail_full_path).replace(
-                str(self._videos_base_path), "/videos"
-            ),
-            full_client_path=str(full_path).replace(
-                str(self._videos_base_path), "/videos"
-            ),
+            thumbnail_full_path=str(thumbnail_full_path),
+            full_client_path=str(full_path),
             size=size,
             duration_seconds=duration_seconds,
             type=file_extension,
