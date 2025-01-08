@@ -234,6 +234,9 @@ class ImagesProcessingV2:
                 # Walk through the base path to find images
                 for root, _, files in os.walk(self._image_base_path):
                     for file in files:
+                        if "_thumbnail" in file.lower():
+                            # The image is for videos and should be ignored
+                            continue
                         if file.lower().endswith(
                             (".png", ".jpg", ".jpeg", ".tiff", ".bmp", ".gif")
                         ):
