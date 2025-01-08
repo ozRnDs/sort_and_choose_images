@@ -45,9 +45,8 @@ class VideosProcessing:
             # 1. Count total video files for progress tracking
             valid_extensions = (".mp4", ".mov", ".avi", ".mkv", ".flv", ".wmv")
             total_files = sum(
-                len(files)
+                sum(1 for file in files if file.lower().endswith(".mp4"))
                 for _, _, files in os.walk(self._videos_base_path)
-                if any(file.lower().endswith(valid_extensions) for file in files)
             )
 
             # 2. Use tqdm for progress visualization
