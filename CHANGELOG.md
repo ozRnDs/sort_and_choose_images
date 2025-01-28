@@ -1,3 +1,11 @@
+## 0.17.1 (2025-01-28)
+
+## 0.16.1 (2025-01-28)
+
+### Fix
+
+- **images.js**: Set the page_size to 400 in when fetching groups
+
 ## 0.17.0 (2025-01-08)
 
 ### Feat

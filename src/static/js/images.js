@@ -29,7 +29,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 async function fetchGroups() {
     try {
-        const response = await fetch(`/get_groups_paginated?page=1&page_size=100&filter_selections=interesting`);
+        const response = await fetch(`/get_groups_paginated?page=1&page_size=400&filter_selections=interesting`);
         if (!response.ok) {
             throw new Error('Failed to fetch group data');
         }
