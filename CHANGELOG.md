@@ -1,8 +1,27 @@
-## 0.16.1 (2025-01-28)
+## 0.17.0 (2025-01-08)
+
+### Feat
+
+- **GroupsRouterV2**: Add get_group_videos entrypoint
+- **ImageDBService**: Add methods to support videos: add_video, get_videos
+- **VideosProcessing**: Create the basic video service to load videos
+- **GroupDBService**: Add new method: add_video_to_group
+- **VideoMetadata**: Add video object. Add video_list to groups
 
 ### Fix
 
-- **images.js**: Set the page_size to 400 in when fetching groups
+- **ImagesProcessingV2**: Make the load_image function faster for existing images
+- **VideoProcessing**: Make the load_videos function faster for videos that exists
+- **VideosProcessing**: Fix the total_files calculation
+- **ImageProcessingV2**: Ignore thumbnails of videos
+- **ImageDBService**: Fix the media_type condition to retrieve documents without the field
+- **ImageProcessingV2**: Check the camera condition with lower() to be case-insensitive
+
+### Refactor
+
+- **fastapi_server**: Attach the new VideosProcessing router to the fastapi
+- **VideosProcessing**: Attach the ImageDBService with the video functions
+- **MediaType,-ImageMetadata,-VideoMetadata**: Add media_type field to seperate images and videos more easily
 
 ## 0.16.0 (2025-01-05)
 
