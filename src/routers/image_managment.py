@@ -216,15 +216,10 @@ class ImagesProcessingV2:
         @app.get("/v2/load_images", tags=["Admin"])
         async def load_images(rewrite: bool = False):
             # Get the total number of files to process for progress tracking
+            valid_extensions = (".png", ".jpg", ".jpeg", ".tiff", ".bmp", ".gif")
             total_files = sum(
-                len(files)
+                sum(1 for file in files if file.lower().endswith(valid_extensions))
                 for _, _, files in os.walk(self._image_base_path)
-                if any(
-                    file.lower().endswith(
-                        (".png", ".jpg", ".jpeg", ".tiff", ".bmp", ".gif")
-                    )
-                    for file in files
-                )
             )
 
             # Use tqdm for progress tracking
@@ -234,21 +229,23 @@ class ImagesProcessingV2:
                 # Walk through the base path to find images
                 for root, _, files in os.walk(self._image_base_path):
                     for file in files:
-                        if file.lower().endswith(
-                            (".png", ".jpg", ".jpeg", ".tiff", ".bmp", ".gif")
-                        ):
-                            image_metadata = self.extract_image_metadata(file, root)
+                        if "_thumbnail" in file.lower():
+                            # The image is for videos and should be ignored
+                            pbar.update(1)  # Update progress even for skipped files
+                            continue
+                        if file.lower().endswith(valid_extensions):
+                            full_path = os.path.join(root, file)
 
                             # Check if the image is already in the database
                             existing_images = self._image_db_service.get_images(
-                                query={
-                                    "full_client_path": image_metadata.full_client_path
-                                }
+                                query={"full_client_path": str(full_path)}
                             )
-
+                            image_metadata = None
                             if existing_images:
-                                pbar.update(1)  # Update progress even for skipped files
                                 if rewrite:
+                                    image_metadata = self.extract_image_metadata(
+                                        file, root
+                                    )
                                     image_metadata.classification = existing_images[
                                         0
                                     ].classification
@@ -259,8 +256,13 @@ class ImagesProcessingV2:
                                         0
                                     ].ron_in_image
                                 else:
+                                    pbar.update(
+                                        1
+                                    )  # Update progress even for skipped files
                                     continue  # Skip processing if image exists
 
+                            if image_metadata is None:
+                                image_metadata = self.extract_image_metadata(file, root)
                             # Determine the group for the image
                             group_name = self._determine_group(image_metadata)
                             image_metadata.group_name = group_name
@@ -372,7 +374,7 @@ class ImagesProcessingV2:
             )
 
         # Check for WhatsApp-style image naming
-        if camera == "Unknown" or "whatsapp":
+        if camera.lower() == "unknown" or "whatsapp":
             whatsapp_date = self._get_whatsapp_image_date(file)
             if whatsapp_date:
                 camera = "whatsapp"
@@ -380,7 +382,7 @@ class ImagesProcessingV2:
 
         return ImageMetadata(
             name=file,
-            full_client_path=full_path.replace(self._image_base_path, "/images"),
+            full_client_path=full_path,
             size=size,
             type=type_,
             camera=camera,

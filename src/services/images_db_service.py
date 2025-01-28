@@ -35,7 +35,12 @@ from tinydb import Query, TinyDB
 from tinydb.middlewares import CachingMiddleware
 from tinydb.storages import JSONStorage
 
-from ..utils.model_pydantic import ImageFaceRecognitionStatus, ImageMetadata
+from ..utils.model_pydantic import (
+    ImageFaceRecognitionStatus,
+    ImageMetadata,
+    MediaType,
+    VideoMetadata,
+)
 
 
 class ImageDBService:
@@ -70,7 +75,7 @@ class ImageDBService:
         self.db_path = db_path
         self.db = TinyDB(self.db_path, storage=CachingMiddleware(JSONStorage))
 
-    def add_image(self, image: ImageMetadata, flush: bool = False) -> int:
+    def add_image(self, image: ImageMetadata, flush: bool = False) -> List[int]:
         """
         Adds or updates an image document in the database.
 
@@ -88,9 +93,27 @@ class ImageDBService:
             self.db.storage.flush()
         return response
 
+    def add_video(self, video: VideoMetadata, flush: bool = False) -> List[int]:
+        """
+        Adds or updates an image document in the database.
+
+        Args:
+            image (ImageMetadata): An ImageMetadata object containing all necessary image data.
+            flush (bool): Whether to flush the database storage after the operation.
+
+        Returns:
+            int: The ID of the inserted or updated document.
+        """
+        response = self.db.upsert(
+            video.model_dump(), Query().full_client_path == video.full_client_path
+        )
+        if flush:
+            self.db.storage.flush()
+        return response
+
     def get_images(self, query: Optional[Dict[str, Any]] = None) -> List[ImageMetadata]:
         """
-        Retrieves image documents from the database.
+        Retrieves video documents from the database.
 
         Args:
             query (dict, optional): Query conditions for filtering the results.
@@ -108,6 +131,10 @@ class ImageDBService:
                 else:
                     # Default equality
                     conditions.append(Query()[key] == value)
+            conditions.append(
+                (Query()["media_type"] != MediaType.VIDEO.value)
+                | ~(Query()["media_type"].exists())
+            )
             if len(conditions) == 1:
                 results = self.db.search(conditions[0])
             else:
@@ -117,6 +144,37 @@ class ImageDBService:
             return [ImageMetadata(**doc) for doc in results]
         else:
             return [ImageMetadata(**doc) for doc in self.db.all()]
+
+    def get_videos(self, query: Optional[Dict[str, Any]] = None) -> List[VideoMetadata]:
+        """
+        Retrieves video documents from the database.
+
+        Args:
+            query (dict, optional): Query conditions for filtering the results.
+                                    If None, retrieves all documents.
+
+        Returns:
+            list: List of VideoMetadata objects matching the query.
+        """
+        if query:
+            conditions = []
+            for key, value in query.items():
+                if isinstance(value, dict) and "$in" in value:
+                    # Handle '$in' operator
+                    conditions.append(Query()[key].one_of(value["$in"]))
+                else:
+                    # Default equality
+                    conditions.append(Query()[key] == value)
+            conditions.append(Query()["media_type"] == MediaType.VIDEO.value)
+            if len(conditions) == 1:
+                results = self.db.search(conditions[0])
+            else:
+                results = self.db.search(reduce(and_, conditions))
+            for cond in conditions[1:]:
+                results = [doc for doc in results if cond(doc)]
+            return [VideoMetadata(**doc) for doc in results]
+        else:
+            return [VideoMetadata(**doc) for doc in self.db.all()]
 
     def remove_image(self, image_name: str) -> bool:
         """

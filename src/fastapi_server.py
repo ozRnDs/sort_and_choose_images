@@ -17,6 +17,7 @@ from src.routers import (
     groups_page_entrypoints,
     image_managment,
     similarity_entrypoints,
+    video_managment,
 )
 
 from .config import AppConfig
@@ -37,8 +38,8 @@ STATIC_FOLDER_LOCATION = "src/static"
 BASE_PATH = "/images"
 
 FACE_DB = "/data/face_db.json"
-GROUP_DB = "/data/group_db.json"
-IMAGE_DB = "/data/image_db.json"
+GROUP_DB = "/data/group_db_remote.json"
+IMAGE_DB = "/data/image_db_remote.json"
 
 redis_service = None
 face_recognition_service = None
@@ -67,6 +68,14 @@ image_router = image_managment.ImagesProcessingV2(
     image_db_service=image_db_service,
 )
 image_router.create_entry_points(app)
+
+video_router = video_managment.VideosProcessing(
+    videos_base_path=BASE_PATH,
+    group_db_service=group_db_service,
+    media_db_service=image_db_service,
+)
+video_router.create_entry_points(app)
+
 try:
     redis_service = RedisInterface(host=app_config.REDIS_URL)
     face_recognition_service = FaceRecognitionService(

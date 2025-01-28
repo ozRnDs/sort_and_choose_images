@@ -14,6 +14,7 @@ from src.utils.model_pydantic import (
     PaginatedGroupsResponseV1,
     PaginatedGroupsResponseV2,
     ToggleGroupSelection,
+    VideoMetadata,
 )
 
 
@@ -297,6 +298,43 @@ class GroupsRouterV2(GroupsRouterV1):
 
                 # Return the list of image details
                 return images_details
+
+            except FileNotFoundError:
+                return JSONResponse(
+                    content={"error": f"Group '{group_name}' not found."},
+                    status_code=404,
+                )
+            except Exception as err:
+                logger.exception(
+                    f"Error fetching images for group '{group_name}': {err}"
+                )
+                return JSONResponse(
+                    content={"error": "An unexpected error occurred."}, status_code=500
+                )
+
+        @app.get("/get_group_videos", tags=["Groups"])
+        async def get_group_videos(group_name: str = Query(...)) -> List[VideoMetadata]:
+            """
+            Fetch the list of video details for a specific group by its name.
+            """
+            try:
+                # Fetch the group metadata by name
+                group = self._group_db_service.get_group(group_name)
+
+                # If the group has no images, return an empty list
+                if not group.list_of_videos:
+                    return []
+
+                # Update the group as saw
+                self._group_db_service.saw_group_images(group_name=group_name)
+
+                # Fetch the detailed metadata for all images in the group
+                video_details = self._image_db_service.get_videos(
+                    query={"full_client_path": {"$in": group.list_of_videos}}
+                )
+
+                # Return the list of image details
+                return video_details
 
             except FileNotFoundError:
                 return JSONResponse(
